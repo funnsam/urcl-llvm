@@ -39,8 +39,7 @@ impl<'a> Lexer<'a> {
                 '\\' => Some('\\' as u32),
 
                 'x' => {
-                    let b = self.next_char()?.to_string()
-                        + self.next_char()?.to_string().as_str();
+                    let b = self.next_char()?.to_string() + self.next_char()?.to_string().as_str();
 
                     Some(u8::from_str_radix(&b, 16).ok()? as u32)
                 },
@@ -66,7 +65,9 @@ impl<'a> Iterator for Lexer<'a> {
     fn next(&mut self) -> Option<LexResult<'a>> {
         macro_rules! while_char {
             ($e: expr) => {
-                while_char!($e, || { self.next_char(); });
+                while_char!($e, || {
+                    self.next_char();
+                });
             };
             ($e: expr, $a: expr) => {
                 while let Some(c) = self.peek_next() {
@@ -87,8 +88,8 @@ impl<'a> Iterator for Lexer<'a> {
                 while_char!(char::is_whitespace);
                 return self.next();
             },
-            Some(c) if c.is_alphabetic() || matches!(c, '$' | '#' | '@' | '%') => {
-                while_char!(char::is_alphanumeric);
+            Some(c) if c.is_alphabetic() || matches!(c, '$' | '#' | '@' | '%' | '.') => {
+                while_char!(is_ident);
                 let s = self.slice();
                 let is_num = s.chars().skip(1).any(|c| c.is_numeric());
 
@@ -105,6 +106,7 @@ impl<'a> Iterator for Lexer<'a> {
 
                     ('@', _) => Ok(Token::Macro(&s[1..])),
                     ('%', _) => Ok(Token::Port(&s[1..])),
+                    ('.', _) => Ok(Token::Label(&s[1..])),
 
                     _ => Ok(Token::Name(s)),
                 }
@@ -122,10 +124,6 @@ impl<'a> Iterator for Lexer<'a> {
                         .parse()
                         .map_or(Err(LexError::IntValueError), |v| Ok(Token::Int(v)))
                 },
-            },
-            Some('.') => {
-                while_char!(char::is_alphanumeric);
-                Ok(Token::Label(&self.slice()[1..]))
             },
             Some('/') => match self.next_char() {
                 Some('/') => {
@@ -201,3 +199,7 @@ pub enum LexError {
 }
 
 pub type LexResult<'a> = (Span, Result<Token<'a>, LexError>);
+
+fn is_ident(c: char) -> bool {
+    c.is_alphanumeric() || matches!(c, '_')
+}
