@@ -113,7 +113,7 @@ impl<'a> Iterator for Lexer<'a> {
             Some(c) if c.is_alphabetic() || matches!(c, '$' | '#' | '@' | '%' | '.') => {
                 while_char!(is_ident);
                 let s = self.slice();
-                let is_num = s.chars().skip(1).any(|c| c.is_numeric());
+                let is_num = s.chars().skip(1).any(|c| c.is_ascii_digit());
 
                 match (c, is_num) {
                     ('$', false) => Err(LexError::InvalidReg),
@@ -136,10 +136,10 @@ impl<'a> Iterator for Lexer<'a> {
                     _ => Ok(Token::Name(s)),
                 }
             },
-            Some(c) if c.is_numeric() => match (c, self.peek_next()) {
+            Some(c) if c.is_ascii_digit() => match (c, self.peek_next()) {
                 ('0', Some(c)) if BASE_PREFIXES.iter().any(|i| i.0 == c) => {
                     self.next_char();
-                    while_char!(|c| matches!(c, '0'..='9' | 'a'..='f' | 'A'..='F'));
+                    while_char!(|c: char| c.is_ascii_hexdigit());
                     u128::from_str_radix(
                         &self.slice()[2..],
                         BASE_PREFIXES.iter().find(|i| i.0 == c).unwrap().1,
@@ -147,7 +147,7 @@ impl<'a> Iterator for Lexer<'a> {
                     .map_or(Err(LexError::IntValueError), |v| Ok(Token::Int(v)))
                 },
                 _ => {
-                    while_char!(char::is_numeric);
+                    while_char!(|c: char| c.is_ascii_digit());
                     self.slice()
                         .parse()
                         .map_or(Err(LexError::IntValueError), |v| Ok(Token::Int(v)))

@@ -17,14 +17,8 @@ bge .loop r0 r0
 
 .str
 dw [\"Hello, World!\" 0]
-" */ "\
-ADD R1/*  // */ $2 0o23
-OUT %2 'F'//*/
-LSTR #2 @SMSB    0x89234
-";
+" */ "add r1 r2 r3";
     let lexer = urcl_frontend::lexer::Lexer::new(src);
-
-    for t in lexer {
-        println!("{t:?}");
-    }
+    let parser = urcl_frontend::parser::Parser::new(lexer);
+    println!("{:?}", parser.parse_program());
 }
