@@ -1,0 +1,10 @@
+[workspace]
+members = ["urcl-frontend", "urcl-llvm-backend"]
+
+[package]
+name = "urcl-llvm"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+urcl-frontend = { path = "urcl-frontend" }
