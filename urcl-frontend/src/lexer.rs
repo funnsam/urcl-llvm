@@ -101,10 +101,7 @@ impl<'a> Iterator for Lexer<'a> {
         };
 
         let s = self.span();
-        Some(t.map_or_else(
-            |e| Err((s.clone(), e)),
-            |t| Ok((s.clone(), t)),
-        ))
+        Some((s, t))
     }
 }
 
@@ -129,4 +126,4 @@ pub enum LexError {
     UnknownChar,
 }
 
-pub type LexResult<'a> = Result<(Span, Token<'a>), (Span, LexError)>;
+pub type LexResult<'a> = (Span, Result<Token<'a>, LexError>);
