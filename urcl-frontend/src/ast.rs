@@ -10,6 +10,7 @@ pub struct Program {
 
     // body
     pub instructions: Vec<Instruction>,
+    pub dw: Vec<u128>,
 }
 
 macro_rules! instr {
@@ -52,16 +53,10 @@ macro_rules! instr {
     (a) => { Any };
 
     (fromany r $e: expr) => {
-        match $e {
-            Any::Register(r) => r,
-            _ => panic!(),
-        }
+        $e.try_as_register().unwrap()
     };
     (fromany i $e: expr) => {
-        match $e {
-            Any::Immediate(i) => i,
-            _ => panic!(),
-        }
+        $e.try_as_immediate().unwrap()
     };
     (fromany a $e: expr) => {
         $e
@@ -78,6 +73,7 @@ instr! {
     Imm [r a],
     Out [a a],
     Hlt [],
+    Sub [r a a],
 }
 
 #[derive(Clone)]
@@ -86,42 +82,25 @@ pub struct Register(pub u128);
 #[derive(Clone)]
 pub struct Immediate(pub u128);
 
-#[derive(Clone)]
+#[derive(Clone, strum::EnumTryAs)]
 pub enum Any {
     Register(Register),
     Immediate(Immediate),
 }
 
 impl fmt::Debug for Register {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "${}", self.0)
-    }
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "R{}", self.0) }
 }
 
 impl fmt::Debug for Immediate {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "{}", self.0) }
 }
 
 impl fmt::Debug for Any {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::Register(r) => write!(f, "{r:?}"),
-            Self::Immediate(r) => write!(f, "{r:?}"),
-        }
-    }
-}
-
-impl Default for Program {
-    fn default() -> Self {
-        Self {
-            bits: 8,
-            registers: 8,
-            stack_size: 8,
-            heap_size: 16,
-
-            instructions: Vec::new(),
+            Self::Register(r) => r.fmt(f),
+            Self::Immediate(r) => r.fmt(f),
         }
     }
 }
@@ -132,7 +111,7 @@ pub(crate) struct InstProperties {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) enum OperandKind {
+pub enum OperandKind {
     Register,
     Immediate,
     Any,

@@ -19,7 +19,7 @@ impl<'a> Lexer<'a> {
 
     fn slice(&self) -> &'a str { &self.src[self.span()] }
 
-    fn span(&self) -> Span { self.was_at..self.at_byte }
+    pub fn span(&self) -> Span { self.was_at..self.at_byte }
 
     fn next_char(&mut self) -> Option<char> {
         let c = self.src[self.at_byte..].chars().nth(0);
@@ -97,14 +97,14 @@ impl<'a> Iterator for Lexer<'a> {
                 }
 
                 if not_ok {
-                    return Some((self.span(), Err(LexError::UnexpectedEof)));
+                    return Some(Err(LexError::UnexpectedEof));
                 }
             };
         }
 
         self.was_at = self.at_byte;
 
-        let t = match self.next_char() {
+        Some(match self.next_char() {
             Some('\n') => Ok(Token::Newline),
             Some(c) if c.is_whitespace() => {
                 while_char!(char::is_whitespace);
@@ -204,14 +204,11 @@ impl<'a> Iterator for Lexer<'a> {
             },
             Some(_) => Err(LexError::UnknownChar),
             None => return None,
-        };
-
-        let s = self.span();
-        Some((s, t))
+        })
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, strum::EnumTryAs)]
 pub enum Token<'a> {
     Name(&'a str),
     Int(u128),
@@ -241,6 +238,6 @@ pub enum LexError {
     UnexpectedEof,
 }
 
-pub type LexResult<'a> = (Span, Result<Token<'a>, LexError>);
+pub type LexResult<'a> = Result<Token<'a>, LexError>;
 
 fn is_ident(c: char) -> bool { c.is_alphanumeric() || matches!(c, '_') }
