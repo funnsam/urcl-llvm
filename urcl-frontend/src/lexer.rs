@@ -2,6 +2,7 @@ use crate::*;
 
 const BASE_PREFIXES: &[(char, u32)] = &[('x', 16), ('o', 8), ('b', 2)];
 
+#[derive(Debug)]
 pub struct Lexer<'a> {
     src: &'a str,
     was_at: usize,
