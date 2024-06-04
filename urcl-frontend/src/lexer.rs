@@ -15,6 +15,10 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    fn slice(&self) -> &'a str {
+        &self.src[self.span()]
+    }
+
     fn span(&self) -> Span {
         self.was_at..self.at_byte
     }
@@ -56,7 +60,7 @@ impl<'a> Iterator for Lexer<'a> {
             },
             Some(c) if c.is_alphabetic() || matches!(c, '$' | '#' | '@') => {
                 while_char!(char::is_alphanumeric);
-                let s = &self.src[self.span()];
+                let s = self.slice();
                 let is_num = s.chars().skip(1).any(|c| c.is_numeric());
 
                 match (c, is_num) {
@@ -71,12 +75,16 @@ impl<'a> Iterator for Lexer<'a> {
             },
             Some(c) if c.is_numeric() => {
                 while_char!(char::is_numeric);
-                if let Ok(v) = self.src[self.span()].parse() {
+                if let Ok(v) = self.slice().parse() {
                     Ok(Token::Int(v))
                 } else {
                     Err(LexError::IntValueTooBig)
                 }
             },
+            Some('.') => {
+                while_char!(char::is_alphanumeric);
+                Ok(Token::Label(self.slice()[1..]))
+            }
             Some('/') => {
                 match self.next_char() {
                     Some('/') => {
@@ -113,6 +121,7 @@ pub enum Token<'a> {
     Heap(u128),
     Macro(&'a str),
     Newline,
+    Label(&'a str),
 }
 
 #[derive(Debug, Clone)]
