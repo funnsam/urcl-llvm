@@ -6,6 +6,8 @@ minheap 0
 minstack 0
 // run rom
 
+imm r1 .str
+
 .loop
 lod r2 r1
 bge .loop2 r2 1

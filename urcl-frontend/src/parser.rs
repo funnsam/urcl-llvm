@@ -2,6 +2,8 @@ use std::{collections::HashMap, str::FromStr};
 
 use crate::*;
 
+type MidInst<'a> = (&'a str, Vec<(RawOperand<'a>, Span)>, Span);
+
 #[derive(Debug)]
 pub struct Parser<'a> {
     lex: lexer::Lexer<'a>,
@@ -13,7 +15,7 @@ pub struct Parser<'a> {
     stack_size: Option<usize>,
     heap_size: Option<usize>,
 
-    instructions: Vec<(&'a str, Vec<(RawOperand<'a>, Span)>, Span)>,
+    instructions: Vec<MidInst<'a>>,
     labels: HashMap<&'a str, u128>,
     dw: Vec<(RawOperand<'a>, Span)>,
 
@@ -139,18 +141,12 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_inst(
-        &mut self,
-        n: &'a str,
-    ) -> Result<(&'a str, Vec<(RawOperand<'a>, Span)>, Span), ()> {
+    fn parse_inst(&mut self, n: &'a str) -> Result<MidInst<'a>, ()> {
         if let Some(i) = ast::Instruction::properties(n) {
             let mut oprs = Vec::with_capacity(i.operands.len());
             for op in i.operands.iter() {
                 let opr = self.parse_operand(op);
-                opr.map_or_else(
-                    |e| self.errors.push(e),
-                    |o| oprs.push(o),
-                );
+                opr.map_or_else(|e| self.errors.push(e), |o| oprs.push(o));
             }
 
             if !matches!(self.peek_next(), Some(Ok(lexer::Token::Newline)) | None) {
@@ -176,17 +172,14 @@ impl<'a> Parser<'a> {
                             .push((RawOperand::Immediate(ast::Immediate(*c as _)), self.span()));
                     }
                 },
-                Ok(_) => {
-                    match self.parse_operand_with(Some(t), &ast::OperandKind::Immediate) {
-                        Ok(w) => self.dw.push(w),
-                        Err(e) => self.errors.push(e),
-                    }
+                Ok(_) => match self.parse_operand_with(Some(t), &ast::OperandKind::Immediate) {
+                    Ok(w) => self.dw.push(w),
+                    Err(e) => self.errors.push(e),
                 },
                 Err(e) => self.errors.push((ParseError::LexError(e), self.span())),
             }
         }
     }
-
 
     pub fn parse_program(mut self) -> Result<ast::Program, Vec<(ParseError, Span)>> {
         let mut pending_labels: Vec<&str> = Vec::new();
@@ -197,17 +190,16 @@ impl<'a> Parser<'a> {
                 Ok(lexer::Token::Name(n) | lexer::Token::Macro(n))
                     if matches!(n.to_lowercase().as_str(), "bits") =>
                 {
-                    match self.peek_next() {
-                        Some(Ok(
-                            lexer::Token::CmpLe | lexer::Token::CmpGe | lexer::Token::CmpEq,
-                        )) => {
-                            self.next_token();
-                        },
-                        _ => {},
+                    if let Some(Ok(
+                        lexer::Token::CmpLe | lexer::Token::CmpGe | lexer::Token::CmpEq,
+                    )) = self.peek_next()
+                    {
+                        self.next_token();
                     }
 
                     if self.bits.is_some() {
-                        self.errors.push((ParseError::ItemRedefined, self.total_span()));
+                        self.errors
+                            .push((ParseError::ItemRedefined, self.total_span()));
                         self.wait_nl();
                     } else {
                         self.bits = Some(
@@ -217,8 +209,7 @@ impl<'a> Parser<'a> {
                                 .unwrap_or_else(|| {
                                     self.errors.push((ParseError::ExpectedInt, self.span()));
                                     0
-                                })
-                                as _,
+                                }) as _,
                         );
                     }
                 },
@@ -226,7 +217,8 @@ impl<'a> Parser<'a> {
                     if matches!(n.to_lowercase().as_str(), "minreg") =>
                 {
                     if self.registers.is_some() {
-                        self.errors.push((ParseError::ItemRedefined, self.total_span()));
+                        self.errors
+                            .push((ParseError::ItemRedefined, self.total_span()));
                         self.wait_nl();
                     } else {
                         self.registers = Some(
@@ -236,8 +228,7 @@ impl<'a> Parser<'a> {
                                 .unwrap_or_else(|| {
                                     self.errors.push((ParseError::ExpectedInt, self.span()));
                                     0
-                                })
-                                as _,
+                                }) as _,
                         );
                     }
                 },
@@ -245,7 +236,8 @@ impl<'a> Parser<'a> {
                     if matches!(n.to_lowercase().as_str(), "minstack") =>
                 {
                     if self.stack_size.is_some() {
-                        self.errors.push((ParseError::ItemRedefined, self.total_span()));
+                        self.errors
+                            .push((ParseError::ItemRedefined, self.total_span()));
                         self.wait_nl();
                     } else {
                         self.stack_size = Some(
@@ -255,8 +247,7 @@ impl<'a> Parser<'a> {
                                 .unwrap_or_else(|| {
                                     self.errors.push((ParseError::ExpectedInt, self.span()));
                                     0
-                                })
-                                as _,
+                                }) as _,
                         );
                     }
                 },
@@ -264,7 +255,8 @@ impl<'a> Parser<'a> {
                     if matches!(n.to_lowercase().as_str(), "minheap") =>
                 {
                     if self.heap_size.is_some() {
-                        self.errors.push((ParseError::ItemRedefined, self.total_span()));
+                        self.errors
+                            .push((ParseError::ItemRedefined, self.total_span()));
                         self.wait_nl();
                     } else {
                         self.heap_size = Some(
@@ -274,18 +266,21 @@ impl<'a> Parser<'a> {
                                 .unwrap_or_else(|| {
                                     self.errors.push((ParseError::ExpectedInt, self.span()));
                                     0
-                                })
-                                as _,
+                                }) as _,
                         );
                     }
                 },
                 Ok(lexer::Token::Name(n)) if matches!(n.to_lowercase().as_str(), "dw") => {
-                    pending_labels.iter().for_each(|i| { self.labels.insert(&i, self.dw.len() as _); });
+                    pending_labels.iter().for_each(|i| {
+                        self.labels.insert(i, self.dw.len() as _);
+                    });
                     pending_labels.clear();
                     self.parse_add_dw();
                 },
                 Ok(lexer::Token::Name(n)) => {
-                    pending_labels.iter().for_each(|i| { self.labels.insert(&i, self.instructions.len() as _); });
+                    pending_labels.iter().for_each(|i| {
+                        self.labels.insert(i, self.instructions.len() as _);
+                    });
                     pending_labels.clear();
                     if let Ok(i) = self.parse_inst(n) {
                         self.instructions.push(i);
@@ -293,7 +288,8 @@ impl<'a> Parser<'a> {
                 },
                 Ok(lexer::Token::Label(l)) => {
                     if self.labels.contains_key(l) || pending_labels.contains(&l) {
-                        self.errors.push((ParseError::ItemRedefined, self.total_span()));
+                        self.errors
+                            .push((ParseError::ItemRedefined, self.total_span()));
                         self.wait_nl();
                     } else {
                         pending_labels.push(l);
@@ -305,7 +301,9 @@ impl<'a> Parser<'a> {
             }
         }
 
-        pending_labels.iter().for_each(|i| { self.labels.insert(&i, self.instructions.len() as _); });
+        pending_labels.iter().for_each(|i| {
+            self.labels.insert(i, self.instructions.len() as _);
+        });
 
         self.bits = Some(self.bits.unwrap_or(8));
         self.registers = Some(self.registers.unwrap_or(8));
@@ -324,15 +322,13 @@ impl<'a> Parser<'a> {
             instructions: instructions
                 .iter()
                 .map(|i| {
-                    ast::Instruction::construct(
-                        i.0,
-                        i.1.iter().map(|i| self.finalize(i)).collect(),
-                    )
+                    ast::Instruction::construct(i.0, i.1.iter().map(|i| self.finalize(i)).collect())
                 })
                 .collect(),
             dw: dw
                 .iter()
-                .map(|i| self.finalize(i).try_as_immediate().unwrap().0).collect(),
+                .map(|i| self.finalize(i).try_as_immediate().unwrap().0)
+                .collect(),
         };
 
         if self.errors.is_empty() {
@@ -347,7 +343,9 @@ impl<'a> Parser<'a> {
             RawOperand::Register(r) => ast::Any::Register(r.clone()),
             RawOperand::Immediate(i) => ast::Any::Immediate(i.clone()),
             RawOperand::Heap(h) => ast::Any::Immediate(ast::Immediate(self.dw.len() as u128 + h)),
-            RawOperand::MacroImm(MacroImm::Bits) => ast::Any::Immediate(ast::Immediate(self.bits.unwrap() as _)),
+            RawOperand::MacroImm(MacroImm::Bits) => {
+                ast::Any::Immediate(ast::Immediate(self.bits.unwrap() as _))
+            },
             RawOperand::MacroImm(MacroImm::MinReg) => {
                 ast::Any::Immediate(ast::Immediate(self.registers.unwrap() as _))
             },
@@ -358,11 +356,12 @@ impl<'a> Parser<'a> {
                 ast::Any::Immediate(ast::Immediate(self.heap_size.unwrap() as _))
             },
             RawOperand::MacroImm(_) => todo!(),
-            RawOperand::Label(l) => ast::Any::Immediate(ast::Immediate(
-                        *self.labels
-                        .get(l)
-                        .unwrap_or_else(|| { self.errors.push((ParseError::UnknownLabel, op.1.clone())); &0 }),
-            )),
+            RawOperand::Label(l) => {
+                ast::Any::Immediate(ast::Immediate(*self.labels.get(l).unwrap_or_else(|| {
+                    self.errors.push((ParseError::UnknownLabel, op.1.clone()));
+                    &0
+                })))
+            },
         }
     }
 }
