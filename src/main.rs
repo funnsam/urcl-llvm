@@ -1,11 +1,17 @@
 fn main() {
     let src = "\
-@define   urcl      asdf // hjkl
-add r1 $2 3 /*
-            asdfaaas
-            addwqs
-            */
-rsh r1 R2";
+.loop
+lod r2 r1
+bge .loop2 r2 1
+hlt
+.loop2
+out %text r2
+add r1 r1 1
+bge .loop r0 r0
+
+.str
+dw [\"Hello, World!\" 0]
+";
     let lexer = urcl_frontend::lexer::Lexer::new(src);
 
     for t in lexer {

@@ -1,0 +1,11 @@
+comment_width = 100
+condense_wildcard_suffixes = true
+enum_discrim_align_threshold = 33
+fn_single_line = true
+hex_literal_case = "Lower"
+trailing_comma = "Vertical"
+match_block_trailing_comma = true
+use_field_init_shorthand = true
+wrap_comments = true
+
+version = "Two"
