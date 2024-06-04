@@ -262,6 +262,7 @@ impl<'a> Parser<'a> {
         let registers = self.registers.unwrap_or(8);
         let stack_size = self.stack_size.unwrap_or(8);
         let heap_size = self.heap_size.unwrap_or(16);
+        let dw_size = self.dw.len();
 
         Ok(ast::Program {
             bits,
@@ -277,7 +278,7 @@ impl<'a> Parser<'a> {
                         i.0,
                         i.1.iter()
                             .map(|i| {
-                                finalize(bits, registers, stack_size, heap_size, &self.labels, i)
+                                finalize(bits, registers, stack_size, heap_size, &self.labels, dw_size, i)
                             })
                             .try_collect()?,
                     ))
@@ -287,7 +288,7 @@ impl<'a> Parser<'a> {
                 .dw
                 .into_iter()
                 .map(|i| {
-                    finalize(bits, registers, stack_size, heap_size, &self.labels, &i)
+                    finalize(bits, registers, stack_size, heap_size, &self.labels, dw_size, &i)
                         .map(|i| i.try_as_immediate().unwrap().0)
                 })
                 .try_collect()?,
@@ -301,12 +302,13 @@ fn finalize<'a>(
     stack_size: usize,
     heap_size: usize,
     labels: &HashMap<&'a str, u128>,
+    dw_size: usize,
     op: &(RawOperand, Span),
 ) -> Result<ast::Any, (ParseError, Span)> {
     match &op.0 {
         RawOperand::Register(r) => Ok(ast::Any::Register(r.clone())),
         RawOperand::Immediate(i) => Ok(ast::Any::Immediate(i.clone())),
-        RawOperand::Heap(h) => todo!(),
+        RawOperand::Heap(h) => Ok(ast::Any::Immediate(ast::Immediate(dw_size as u128 + h))),
         RawOperand::MacroImm(MacroImm::Bits) => Ok(ast::Any::Immediate(ast::Immediate(bits as _))),
         RawOperand::MacroImm(MacroImm::MinReg) => {
             Ok(ast::Any::Immediate(ast::Immediate(registers as _)))
