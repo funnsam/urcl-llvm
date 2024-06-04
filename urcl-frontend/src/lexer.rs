@@ -1,5 +1,7 @@
 use crate::*;
 
+const BASE_PREFIXES: &[(char, u32)] = &[('x', 16), ('o', 8), ('b', 2)];
+
 pub struct Lexer<'a> {
     src: &'a str,
     was_at: usize,
@@ -78,6 +80,26 @@ impl<'a> Iterator for Lexer<'a> {
                     }
                 }
             };
+            (; $e: expr) => {
+                while_char!(; $e, || {
+                    self.next_char();
+                });
+            };
+            (; $e: expr, $a: expr) => {
+                let mut not_ok = true;
+                while let Some(c) = self.peek_next() {
+                    if $e(c) {
+                        $a();
+                    } else {
+                        not_ok = false;
+                        break;
+                    }
+                }
+
+                if not_ok {
+                    return Some((self.span(), Err(LexError::UnexpectedEof)));
+                }
+            };
         }
 
         self.was_at = self.at_byte;
@@ -99,24 +121,30 @@ impl<'a> Iterator for Lexer<'a> {
 
                     ('r' | 'R' | '$', true) => s[1..]
                         .parse()
-                        .map_or(Err(LexError::RegIdxError), |v| Ok(Token::Reg(v))),
+                        .map_or(Err(LexError::IntValueError), |v| Ok(Token::Reg(v))),
                     ('m' | 'M' | '#', true) => s[1..]
                         .parse()
-                        .map_or(Err(LexError::MemIdxError), |v| Ok(Token::Heap(v))),
+                        .map_or(Err(LexError::IntValueError), |v| Ok(Token::Heap(v))),
+                    ('%', true) => s[1..]
+                        .parse()
+                        .map_or(Err(LexError::IntValueError), |v| Ok(Token::Int(v))),
 
+                    ('%', false) => Ok(Token::Port(&s[1..])),
                     ('@', _) => Ok(Token::Macro(&s[1..])),
-                    ('%', _) => Ok(Token::Port(&s[1..])),
                     ('.', _) => Ok(Token::Label(&s[1..])),
 
                     _ => Ok(Token::Name(s)),
                 }
             },
             Some(c) if c.is_numeric() => match (c, self.peek_next()) {
-                ('0', Some('x')) => {
+                ('0', Some(c)) if BASE_PREFIXES.iter().any(|i| i.0 == c) => {
                     self.next_char();
                     while_char!(|c| matches!(c, '0'..='9' | 'a'..='f' | 'A'..='F'));
-                    u128::from_str_radix(&self.slice()[2..], 16)
-                        .map_or(Err(LexError::IntValueError), |v| Ok(Token::Int(v)))
+                    u128::from_str_radix(
+                        &self.slice()[2..],
+                        BASE_PREFIXES.iter().find(|i| i.0 == c).unwrap().1,
+                    )
+                    .map_or(Err(LexError::IntValueError), |v| Ok(Token::Int(v)))
                 },
                 _ => {
                     while_char!(char::is_numeric);
@@ -155,12 +183,25 @@ impl<'a> Iterator for Lexer<'a> {
             },
             Some('"') => {
                 let mut ch = Vec::new();
-                while_char!(|c| c != '"', || ch.push(self.get_char_esc().unwrap()));
+                while_char!(; |c| c != '"', || ch.push(self.get_char_esc().unwrap()));
                 self.next_char();
                 Ok(Token::String(ch))
             },
             Some('[') => Ok(Token::SqBrStart),
             Some(']') => Ok(Token::SqBrEnd),
+            Some(c) if matches!(c, '=' | '<' | '>') => match self.peek_next() {
+                Some('=') => {
+                    self.next_char();
+                    match c {
+                        '<' => Ok(Token::CmpLe),
+                        '>' => Ok(Token::CmpGe),
+                        '=' => Ok(Token::CmpEq),
+                        _ => unreachable!(),
+                    }
+                },
+                Some(_) => Err(LexError::UnknownChar),
+                None => Err(LexError::UnexpectedEof),
+            },
             Some(_) => Err(LexError::UnknownChar),
             None => return None,
         };
@@ -183,6 +224,9 @@ pub enum Token<'a> {
     SqBrStart,
     SqBrEnd,
     Port(&'a str),
+    CmpLe,
+    CmpGe,
+    CmpEq,
 }
 
 #[derive(Debug, Clone)]
@@ -190,16 +234,13 @@ pub enum LexError {
     InvalidMem,
     InvalidReg,
     IntValueError,
-    RegIdxError,
-    MemIdxError,
     ImproperComment,
     UnknownChar,
     UnclosedStr,
     CharError,
+    UnexpectedEof,
 }
 
 pub type LexResult<'a> = (Span, Result<Token<'a>, LexError>);
 
-fn is_ident(c: char) -> bool {
-    c.is_alphanumeric() || matches!(c, '_')
-}
+fn is_ident(c: char) -> bool { c.is_alphanumeric() || matches!(c, '_') }
