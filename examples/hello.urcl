@@ -1,20 +1,21 @@
 bits >= 8
 minreg 2
 minheap 0
-minstack 0
-// run rom
+minstack 1
 
 imm r1 .str
+cal .print
+hlt
 
-.loop
+.print
     lod r2 r1
-    bge .loop2 r2 100
-    hlt
-
-    .loop2
+    brz .print_exit r2
     out %text r2
-    add r1 r1 1
-    bge .loop r0 r0
+    inc r1 r1
+    jmp .print
+
+    .print_exit
+    ret
 
 .str
 dw ["Hello, World!" 0]

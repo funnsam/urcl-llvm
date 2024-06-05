@@ -8,3 +8,4 @@ edition = "2021"
 
 [dependencies]
 urcl-frontend = { path = "urcl-frontend" }
+urcl-llvm-backend = { version = "0.1.0", path = "urcl-llvm-backend" }

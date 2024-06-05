@@ -401,6 +401,7 @@ impl<'a> Parser<'a> {
 
         let instructions = core::mem::take(&mut self.instructions);
         let dw = core::mem::take(&mut self.dw);
+        let dw_len = dw.len() as u128;
 
         let p = ast::Program {
             bits: self.bits.unwrap(),
@@ -411,12 +412,12 @@ impl<'a> Parser<'a> {
             instructions: instructions
                 .iter()
                 .map(|i| {
-                    ast::Instruction::construct(i.0, i.1.iter().map(|i| self.finalize(i)).collect())
+                    ast::Instruction::construct(i.0, i.1.iter().map(|i| self.finalize(i, dw_len)).collect())
                 })
                 .collect(),
             dw: dw
                 .iter()
-                .map(|i| self.finalize(i).try_as_immediate().unwrap().0)
+                .map(|i| self.finalize(i, dw_len).try_as_immediate().unwrap().0)
                 .collect(),
         };
 
@@ -427,11 +428,11 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn finalize(&mut self, op: &(RawOperand, Span)) -> ast::Any {
+    fn finalize(&mut self, op: &(RawOperand, Span), dw_len: u128) -> ast::Any {
         match &op.0 {
             RawOperand::Register(r) => ast::Any::Register(r.clone()),
             RawOperand::Immediate(i) => ast::Any::Immediate(i.clone()),
-            RawOperand::Heap(h) => ast::Any::Immediate(ast::Immediate(self.dw.len() as u128 + h)),
+            RawOperand::Heap(h) => ast::Any::Immediate(ast::Immediate(dw_len + h)),
             RawOperand::MacroImm(MacroImm::Bits) => {
                 ast::Any::Immediate(ast::Immediate(self.bits.unwrap() as _))
             },

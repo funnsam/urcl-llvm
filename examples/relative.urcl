@@ -1,0 +1,16 @@
+jmp .start
+
+out 1 'b'
+out 1 'r'
+out 2 1
+out 2 2
+out 2 3
+jmp ~+2
+.start
+jmp ~-4
+out 2 4
+out 2 5
+hlt
+out 1 'u'
+out 1 'h'
+out 1 '!'

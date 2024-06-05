@@ -15,7 +15,9 @@ pub struct Program {
 
 macro_rules! instr {
     ($($name: ident [$($arg: tt)*]),* $(,)?) => {
-        #[derive(Debug, Clone)]
+        #[derive(Debug, Clone, strum::EnumDiscriminants)]
+        #[strum_discriminants(derive(strum::Display))]
+        #[strum_discriminants(strum(serialize_all = "lowercase"))]
         pub enum Instruction {
             $($name($(instr!($arg)),*)),*
         }
@@ -107,10 +109,30 @@ instr! {
     Mlt [r a a],
     Div [r a a],
     Mod [r a a],
-    // TODO:
-    Llod [r a a],
-    Lstr [a a a],
-    // TODO:
+    Bsr [r a a],
+    Bsl [r a a],
+    Srs [r a],
+    Bss [r a a],
+    SetE [r a a],
+    SetNe [r a a],
+    SetG [r a a],
+    SetL [r a a],
+    SetGe [r a a],
+    SetLe [r a a],
+    SetC [r a a],
+    SetNc [r a a],
+    LLod [r a a],
+    LStr [a a a],
+    SDiv [r a a],
+    SBrl [a a a],
+    SBrg [r a a],
+    SBle [a a a],
+    SBge [a a a],
+    SSetG [r a a],
+    SSetL [r a a],
+    SSetGe [r a a],
+    SSetLe [r a a],
+    Abs [r a],
     Out [a a],
     In [r a],
 }
@@ -134,15 +156,15 @@ pub enum Any {
 impl fmt::Debug for Register {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::General(r) => write!(f, "R{r}"),
-            Self::Pc => write!(f, "PC"),
-            Self::Sp => write!(f, "SP"),
+            Self::General(r) => write!(f, "r{r}"),
+            Self::Pc => write!(f, "pc"),
+            Self::Sp => write!(f, "sp"),
         }
     }
 }
 
 impl fmt::Debug for Immediate {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "{}", self.0) }
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "{}", self.0 as i128) }
 }
 
 impl fmt::Debug for Any {
@@ -169,24 +191,28 @@ pub enum OperandKind {
 #[derive(Debug, Clone, strum::EnumString)]
 #[strum(ascii_case_insensitive)]
 pub enum Port {
+    // general
     CpuBus    = 0,
     Text      = 1,
     Numb      = 2,
     Supported = 5,
     Special   = 6,
     Profile   = 7,
+    // graphics
     X         = 8,
     Y         = 9,
     #[strum(serialize = "color", serialize = "colour")]
     Color     = 10,
     Buffer    = 11,
     GSpecial  = 15,
+    // text
     Ascii8    = 16,
     Char5     = 17,
     Char6     = 18,
     Ascii7    = 19,
     Utf8      = 20,
     TSpecial  = 23,
+    // numbers
     Int       = 24,
     Uint      = 25,
     Bin       = 26,
@@ -194,10 +220,12 @@ pub enum Port {
     Float     = 28,
     Fixed     = 29,
     NSpecial  = 31,
+    // storage
     Addr      = 32,
     Bus       = 33,
     Page      = 34,
     SSpecial  = 39,
+    // miscellaneous
     Rng       = 40,
     Note      = 41,
     Instr     = 42,
@@ -206,19 +234,45 @@ pub enum Port {
     NAddr     = 45,
     Data      = 46,
     MSpecial  = 47,
-    Ud1,
-    Ud2,
-    Ud3,
-    Ud4,
-    Ud5,
-    Ud6,
-    Ud7,
-    Ud8,
-    Ud9,
-    Ud11,
-    Ud12,
-    Ud13,
-    Ud14,
-    Ud15,
-    Ud16,
+    // user defined
+    Ud1       = 48,
+    Ud2       = 49,
+    Ud3       = 50,
+    Ud4       = 51,
+    Ud5       = 52,
+    Ud6       = 53,
+    Ud7       = 54,
+    Ud8       = 55,
+    Ud9       = 56,
+    Ud10      = 57,
+    Ud11      = 58,
+    Ud12      = 59,
+    Ud13      = 60,
+    Ud14      = 61,
+    Ud15      = 62,
+    Ud16      = 63,
+}
+
+impl fmt::Display for Program {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(f, "bits {}", self.bits)?;
+        writeln!(f, "minreg {}", self.registers)?;
+        writeln!(f, "minstack {}", self.stack_size)?;
+        writeln!(f, "minheap {}", self.heap_size)?;
+        writeln!(f, "\n// inst")?;
+
+        for i in self.instructions.iter() {
+            let j = format!("{i:?}");
+            let i = InstructionDiscriminants::from(i).to_string();
+            let k = j.get((i.len()+1)..(j.len()-1)).unwrap_or("");
+            writeln!(f, "{i} {}", k.replace(',', ""))?;
+        }
+
+        writeln!(f, "\n// dw")?;
+        for w in self.dw.iter() {
+            writeln!(f, "dw {}", *w as i128)?;
+        }
+
+        Ok(())
+    }
 }
