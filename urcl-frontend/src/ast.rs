@@ -253,6 +253,15 @@ pub enum Port {
     Ud16      = 63,
 }
 
+impl fmt::Display for Instruction {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let j = format!("{self:?}");
+        let i = InstructionDiscriminants::from(self).to_string();
+        let k = j.get((i.len()+1)..(j.len()-1)).unwrap_or("");
+        writeln!(f, "{i} {}", k.replace(',', ""))
+    }
+}
+
 impl fmt::Display for Program {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(f, "bits {}", self.bits)?;
@@ -262,10 +271,7 @@ impl fmt::Display for Program {
         writeln!(f, "\n// inst")?;
 
         for i in self.instructions.iter() {
-            let j = format!("{i:?}");
-            let i = InstructionDiscriminants::from(i).to_string();
-            let k = j.get((i.len()+1)..(j.len()-1)).unwrap_or("");
-            writeln!(f, "{i} {}", k.replace(',', ""))?;
+            i.fmt(f)?;
         }
 
         writeln!(f, "\n// dw")?;
