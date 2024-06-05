@@ -1,0 +1,6 @@
+@define the_port %numb
+@define temp r1
+@define the_number 69420
+
+imm temp the_number
+out the_port temp

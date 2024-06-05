@@ -108,7 +108,7 @@ impl<'a> Iterator for Lexer<'a> {
         Some(match self.next_char() {
             Some('\n') => Ok(Token::Newline),
             Some(c) if c.is_whitespace() => {
-                while_char!(char::is_whitespace);
+                while_char!(|c: char| c.is_whitespace() && c != '\n');
                 return self.next();
             },
             Some(c) if c.is_alphabetic() || matches!(c, '$' | '#' | '@' | '%' | '.') => {
@@ -120,9 +120,11 @@ impl<'a> Iterator for Lexer<'a> {
                     ('$', false) => Err(LexError::InvalidReg),
                     ('#', false) => Err(LexError::InvalidMem),
 
-                    ('r' | 'R' | '$', true) => s[1..]
-                        .parse()
-                        .map_or(Err(LexError::IntValueError), |v| Ok(Token::Reg(v))),
+                    ('r' | 'R' | '$', true) => {
+                        s[1..].parse().map_or(Err(LexError::IntValueError), |v| {
+                            Ok(Token::Reg(ast::Register::General(v)))
+                        })
+                    },
                     ('m' | 'M' | '#', true) => s[1..]
                         .parse()
                         .map_or(Err(LexError::IntValueError), |v| Ok(Token::Heap(v))),
@@ -134,10 +136,22 @@ impl<'a> Iterator for Lexer<'a> {
                     ('@', _) => Ok(Token::Macro(&s[1..])),
                     ('.', _) => Ok(Token::Label(&s[1..])),
 
+                    _ if s.eq_ignore_ascii_case("pc") => Ok(Token::Reg(ast::Register::Pc)),
+                    _ if s.eq_ignore_ascii_case("sp") => Ok(Token::Reg(ast::Register::Sp)),
                     _ => Ok(Token::Name(s)),
                 }
             },
-            Some(c) if c.is_ascii_digit() => match (c, self.peek_next()) {
+            Some('~') => {
+                if matches!(self.peek_next(), Some('+' | '-')) {
+                    self.next_char();
+                }
+
+                while_char!(|c: char| c.is_ascii_digit());
+                self.slice()[1..]
+                    .parse::<i128>()
+                    .map_or(Err(LexError::IntValueError), |v| Ok(Token::Relative(v)))
+            },
+            Some(c) if c.is_ascii_digit() || c == '-' => match (c, self.peek_next()) {
                 ('0', Some(c)) if BASE_PREFIXES.iter().any(|i| i.0 == c) => {
                     self.next_char();
                     while_char!(|c: char| c.is_ascii_hexdigit());
@@ -150,8 +164,8 @@ impl<'a> Iterator for Lexer<'a> {
                 _ => {
                     while_char!(|c: char| c.is_ascii_digit());
                     self.slice()
-                        .parse()
-                        .map_or(Err(LexError::IntValueError), |v| Ok(Token::Int(v)))
+                        .parse::<i128>()
+                        .map_or(Err(LexError::IntValueError), |v| Ok(Token::Int(v as u128)))
                 },
             },
             Some('/') => match self.next_char() {
@@ -213,7 +227,7 @@ impl<'a> Iterator for Lexer<'a> {
 pub enum Token<'a> {
     Name(&'a str),
     Int(u128),
-    Reg(u128),
+    Reg(ast::Register),
     Heap(u128),
     Macro(&'a str),
     Newline,
@@ -225,6 +239,7 @@ pub enum Token<'a> {
     CmpLe,
     CmpGe,
     CmpEq,
+    Relative(i128),
 }
 
 #[derive(Debug, Clone)]
