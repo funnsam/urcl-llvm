@@ -1,0 +1,11 @@
+bits 32
+
+mov r1 1
+
+.loop
+add r1 r1 r2
+sub r2 r1 r2
+out %numb r2
+out %text '\n'
+bge .loop 1000 r2
+hlt

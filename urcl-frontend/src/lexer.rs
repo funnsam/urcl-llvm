@@ -114,7 +114,7 @@ impl<'a> Iterator for Lexer<'a> {
             Some(c) if c.is_alphabetic() || matches!(c, '$' | '#' | '@' | '%' | '.') => {
                 while_char!(is_ident);
                 let s = self.slice();
-                let is_num = s.chars().skip(1).any(|c| c.is_ascii_digit());
+                let is_num = !s.chars().skip(1).any(|c| !c.is_ascii_digit());
 
                 match (c, is_num) {
                     ('$', false) => Err(LexError::InvalidReg),

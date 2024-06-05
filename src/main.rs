@@ -10,4 +10,6 @@ fn main() {
     codegen.generate_code();
     codegen.dump();
     codegen.write_obj();
+
+    println!("ok");
 }

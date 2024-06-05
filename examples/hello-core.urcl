@@ -8,7 +8,8 @@ imm r1 .str
 
 .loop
     lod r2 r1
-    bge .loop2 r2 100
+    bge .loop2 r2 1
+    // bge ~+0 r0 r0 // halt
     hlt
 
     .loop2

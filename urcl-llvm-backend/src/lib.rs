@@ -56,7 +56,7 @@ impl<'a> Codegen<'a> {
         let get_reg = |r: &_| match r {
             ast::Register::General(0) => word_t.const_zero(),
             ast::Register::General(g) => {
-                self.builder.build_load(word_t, registers[*g as usize], "reg_load").unwrap().into_int_value()
+                self.builder.build_load(word_t, registers[*g as usize - 1], "reg_load").unwrap().into_int_value()
             },
             ast::Register::Pc => todo!(),
             ast::Register::Sp => todo!(),
@@ -65,7 +65,7 @@ impl<'a> Codegen<'a> {
         let set_reg = |r: &_, v: values::IntValue| match r {
             ast::Register::General(0) => {},
             ast::Register::General(g) => {
-                self.builder.build_store(registers[*g as usize], v).unwrap();
+                self.builder.build_store(registers[*g as usize - 1], v).unwrap();
             },
             ast::Register::Pc => todo!(),
             ast::Register::Sp => todo!(),
@@ -74,6 +74,21 @@ impl<'a> Codegen<'a> {
         let get_any = |v: &_| match v {
             ast::Any::Register(r) => get_reg(r),
             ast::Any::Immediate(i) => word_t.const_int(i.0 as u64, false),
+        };
+
+        let read_ram = |a| unsafe {
+            let p = self.builder.build_gep(word_t, ram, &[a], "ram_gep").unwrap();
+            self.builder.build_load(word_t, p, "read_ram").unwrap().into_int_value()
+        };
+
+        let write_ram = |a, v: values::IntValue| unsafe {
+            let p = self.builder.build_gep(word_t, ram, &[a], "ram_gep").unwrap();
+            self.builder.build_store(p, v).unwrap();
+        };
+
+        let ret = || {
+            let inst_cnt_v = self.builder.build_load(mach_t, inst_cnt, "inst_cnt_v").unwrap();
+            self.builder.build_return(Some(&inst_cnt_v)).unwrap();
         };
 
         let inst_bb = (0..=self.program.instructions.len())
@@ -90,15 +105,47 @@ impl<'a> Codegen<'a> {
             self.builder.build_store(inst_cnt, update).unwrap();
 
             match i {
+                ast::Instruction::Add(d, a, b) => {
+                    let a = get_any(a);
+                    let b = get_any(b);
+                    set_reg(d, self.builder.build_int_add(a, b, "add_urcl").unwrap());
+                    self.builder.build_unconditional_branch(inst_bb[pc + 1]).unwrap();
+                },
+                ast::Instruction::Lod(d, a) => {
+                    let a = get_any(a);
+                    set_reg(d, read_ram(a));
+                    self.builder.build_unconditional_branch(inst_bb[pc + 1]).unwrap();
+                },
+                ast::Instruction::Str(a, v) => {
+                    let a = get_any(a);
+                    let v = get_any(v);
+                    write_ram(a, v);
+                    self.builder.build_unconditional_branch(inst_bb[pc + 1]).unwrap();
+                },
+                ast::Instruction::Bge(ast::Any::Immediate(d), a, b) => {
+                    let a = get_any(a);
+                    let b = get_any(b);
+                    let c = self.builder.build_int_compare(IntPredicate::UGE, a, b, "urcl_bge_cmp").unwrap();
+                    self.builder.build_conditional_branch(c, inst_bb[d.0 as usize], inst_bb[pc + 1]).unwrap();
+                },
+                ast::Instruction::Sub(d, a, b) => {
+                    let a = get_any(a);
+                    let b = get_any(b);
+                    set_reg(d, self.builder.build_int_sub(a, b, "sub_urcl").unwrap());
+                    self.builder.build_unconditional_branch(inst_bb[pc + 1]).unwrap();
+                },
                 ast::Instruction::Imm(d, v) | ast::Instruction::Mov(d, v) => {
                     let v = get_any(v);
                     set_reg(d, v);
                     self.builder.build_unconditional_branch(inst_bb[pc + 1]).unwrap();
                 },
+                ast::Instruction::Hlt() => {
+                    ret();
+                },
                 ast::Instruction::Out(p, v) => {
                     let p = get_any(p);
                     let v = get_any(v);
-                    self.builder.build_call(port_out, &[p.into(), v.into()], "port_out").unwrap();
+                    self.builder.build_call(port_out, &[p.into(), v.into()], "urcl_out").unwrap();
                     self.builder.build_unconditional_branch(inst_bb[pc + 1]).unwrap();
                 }
                 _ => todo!("{i}"),
@@ -106,8 +153,7 @@ impl<'a> Codegen<'a> {
         }
 
         self.builder.position_at_end(*inst_bb.last().unwrap());
-        let inst_cnt_v = self.builder.build_load(mach_t, inst_cnt, "inst_cnt_v").unwrap();
-        self.builder.build_return(Some(&inst_cnt_v)).unwrap();
+        ret();
     }
 
     pub fn dump(&self) {
@@ -123,7 +169,7 @@ impl<'a> Codegen<'a> {
         let features = targets::TargetMachine::get_host_cpu_features();
         let reloc = targets::RelocMode::Default;
         let model = targets::CodeModel::Default;
-        let opt = OptimizationLevel::Default;
+        let opt = OptimizationLevel::None;
 
         let target_machine = target.create_target_machine(
             &triple,
@@ -134,6 +180,6 @@ impl<'a> Codegen<'a> {
             model
         ).unwrap();
 
-        target_machine.write_to_file(&self.module, targets::FileType::Object, &std::path::Path::new("urcl.obj")).unwrap();
+        target_machine.write_to_file(&self.module, targets::FileType::Object, &std::path::Path::new("urcl.o")).unwrap();
     }
 }
