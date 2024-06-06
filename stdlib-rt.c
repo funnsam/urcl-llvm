@@ -1,8 +1,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <time.h>
 
-extern uint32_t urcl_main();
+extern uint64_t urcl_main();
 
 uint32_t urcl_in(uint32_t port) {
     switch (port) {
@@ -59,7 +60,15 @@ void urcl_out(uint32_t port, uint32_t data) {
 }
 
 int main() {
-    uint32_t inst = urcl_main();
-    printf("\n\x1b[32mI:\x1b[0m ran %u instructions\n", inst);
+    struct timespec start, end;
+    clock_gettime(CLOCK_REALTIME, &start);
+
+    uint64_t inst = urcl_main();
+
+    clock_gettime(CLOCK_REALTIME, &end);
+
+    double time = (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec) * 1e-9;
+
+    printf("\n\x1b[32mI:\x1b[0m ran %lu instructions in %.1fs (%.1fHz)\n", inst, time, ((double) inst) / time);
     return 0;
 }

@@ -15,9 +15,5 @@ fn main() {
     codegen.generate_code();
     codegen.dump();
     codegen.write_obj(urcl_llvm_backend::FileType::Object, std::path::Path::new("urcl.o"));
-
-    // let mut asm_path = std::path::PathBuf::from(path);
-    // asm_path.set_extension("asm");
-    // codegen.write_obj(urcl_llvm_backend::FileType::Assembly, asm_path.as_path());
-    // codegen.write_obj(urcl_llvm_backend::FileType::Assembly, asm_path.as_path());
+    codegen.write_obj(urcl_llvm_backend::FileType::Assembly, std::path::Path::new("urcl.asm"));
 }

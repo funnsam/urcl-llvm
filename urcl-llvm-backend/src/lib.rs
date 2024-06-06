@@ -35,14 +35,15 @@ impl<'a> Codegen<'a> {
 
     pub fn generate_code(&mut self) {
         let word_t = self.context.custom_width_int_type(self.program.bits as u32);
-        let mach_t = self.context.custom_width_int_type(32);
+        let mach_t = self.context.custom_width_int_type(64);
         let void = self.context.void_type();
 
         let word_1 = word_t.const_int(1, false);
+        let word_0 = word_t.const_zero();
 
         let main = self
             .module
-            .add_function("urcl_main", word_t.fn_type(&[], false), None);
+            .add_function("urcl_main", mach_t.fn_type(&[], false), None);
         let port_out = self.module.add_function(
             "urcl_out",
             void.fn_type(&[word_t.into(); 2], false),
@@ -84,7 +85,7 @@ impl<'a> Codegen<'a> {
         self.builder.build_unconditional_branch(inst_bb[0]).unwrap();
 
         let get_reg = |r: &_| match r {
-            ast::Register::General(0) => word_t.const_zero(),
+            ast::Register::General(0) => word_0,
             ast::Register::General(g) => self
                 .builder
                 .build_load(word_t, registers[*g as usize - 1], "reg_load")
@@ -200,6 +201,11 @@ impl<'a> Codegen<'a> {
                     let c = $cond(a, b);
                     cond_br(c, $d);
                 }};
+                (1bc $d: tt $a: tt $cond: expr) => {{
+                    let a = get_any($a);
+                    let c = $cond(a);
+                    cond_br(c, $d);
+                }};
             }
 
             match i {
@@ -253,6 +259,29 @@ impl<'a> Codegen<'a> {
                 }),
                 ast::Instruction::Not(d, a) => gen!(1op d a |a| {
                     self.builder.build_not(a, "not_urcl").unwrap()
+                }),
+                ast::Instruction::Xnor(d, a, b) => gen!(2op d a b |a, b| {
+                    let c = self.builder.build_xor(a, b, "xnor_urcl_1").unwrap();
+                    self.builder.build_not(c, "xnor_urcl_2").unwrap()
+                }),
+                ast::Instruction::Xor(d, a, b) => gen!(2op d a b |a, b| {
+                    self.builder.build_xor(a, b, "xor_urcl").unwrap()
+                }),
+                ast::Instruction::Nand(d, a, b) => gen!(2op d a b |a, b| {
+                    let c = self.builder.build_and(a, b, "nand_urcl_1").unwrap();
+                    self.builder.build_not(c, "nand_urcl_2").unwrap()
+                }),
+                ast::Instruction::Bre(d, a, b) => gen!(2bc d a b |a, b| {
+                    self.builder.build_int_compare(IntPredicate::EQ, a, b, "urcl_bre_cmp").unwrap()
+                }),
+                ast::Instruction::Bne(d, a, b) => gen!(2bc d a b |a, b| {
+                    self.builder.build_int_compare(IntPredicate::NE, a, b, "urcl_bne_cmp").unwrap()
+                }),
+                ast::Instruction::Brz(d, a) => gen!(1bc d a |a| {
+                    self.builder.build_int_compare(IntPredicate::EQ, a, word_0, "urcl_brz_cmp").unwrap()
+                }),
+                ast::Instruction::Bnz(d, a) => gen!(1bc d a |a| {
+                    self.builder.build_int_compare(IntPredicate::NE, a, word_0, "urcl_bnz_cmp").unwrap()
                 }),
                 ast::Instruction::Out(p, v) => {
                     let p = get_any(p);

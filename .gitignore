@@ -1,5 +1,6 @@
 /target
 /*.urcl
 *.o
-a.out
 *.ll
+*.asm
+a.out

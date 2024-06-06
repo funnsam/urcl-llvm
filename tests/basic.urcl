@@ -86,19 +86,106 @@ out test_cases 1
 out test_end test_end_data
 imm r1 1
 
-// Xnor [r a a],
-// Xor [r a a],
-// Nand [r a a],
+// xnor
+    xnor r1 5 3
+    sub r1 r1 249
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1
 
-// Brl [a a a],
-// Brg [a a a],
-// Bre [a a a],
-// Bne [a a a],
+// xor
+    xor r1 5 3
+    sub r1 r1 6
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1
+
+// nand
+    nand r1 5 3
+    sub r1 r1 254
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1
+
+// brl
+// brg
+
+// bre
+    bre .bre_ok_1 69 325
+    out case_result 1
+
+    .bre_ok_1
+    out case_result 0
+    bre .bre_fail_2 69 42
+    out case_result 0
+    bge .bre_ok_2 r0 r0
+
+    .bre_fail_2
+    out case_result 2
+.bre_ok_2
+out test_cases 2
+out test_end test_end_data
+imm r1 1
+
+// bne
+    bne .bne_ok_1 69 42
+    out case_result 1
+
+    .bne_ok_1
+    out case_result 0
+    bne .bne_fail_2 69 325
+    out case_result 0
+    bge .bne_ok_2 r0 r0
+
+    .bne_fail_2
+    out case_result 2
+.bne_ok_2
+out test_cases 2
+out test_end test_end_data
+imm r1 1
+
 // Bod [a a],
 // Bev [a a],
-// Ble [a a a],
-// Brz [a a],
-// Bnz [a a],
+
+// ble
+
+// brz
+    brz .brz_ok_1 256
+    out case_result 1
+
+    .brz_ok_1
+    out case_result 0
+    brz .brz_fail_2 69
+    out case_result 0
+    bge .brz_ok_2 r0 r0
+
+    .brz_fail_2
+    out case_result 2
+.brz_ok_2
+out test_cases 2
+out test_end test_end_data
+imm r1 1
+
+// bnz
+    bnz .bnz_ok_1 69
+    out case_result 1
+
+    .bnz_ok_1
+    out case_result 0
+    bnz .bnz_fail_2 256
+    out case_result 0
+    bge .bnz_ok_2 r0 r0
+
+    .bnz_fail_2
+    out case_result 2
+.bnz_ok_2
+out test_cases 2
+out test_end test_end_data
+imm r1 1
+
 // Brn [a a],
 // Brp [a a],
 
