@@ -2,9 +2,9 @@
 #include <stdio.h>
 #include <stdint.h>
 
-extern uint32_t urcl_main();
+extern uint64_t urcl_main();
 
-uint32_t urcl_in(uint32_t port) {
+uint8_t urcl_in(uint8_t port) {
     switch (port) {
         default: {
             printf("\x1b[1;33mW:\x1b[0m unknown port %%%u was read\n", port);
@@ -17,7 +17,7 @@ int test_no = 1;
 int t_case = 0;
 int failed = 0;
 
-void urcl_out(uint32_t port, uint32_t data) {
+void urcl_out(uint8_t port, uint8_t data) {
     switch (port) {
         case 1: {
             test_no += 1;
@@ -49,7 +49,7 @@ void urcl_out(uint32_t port, uint32_t data) {
 }
 
 int main() {
-    uint32_t inst = urcl_main();
+    uint64_t inst = urcl_main();
     printf("\x1b[32mI:\x1b[0m %i cases failed\n", failed);
     return failed;
 }

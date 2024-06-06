@@ -14,6 +14,12 @@ fn main() {
     let mut codegen = urcl_llvm_backend::Codegen::new(&ctx, program);
     codegen.generate_code();
     codegen.dump();
-    codegen.write_obj(urcl_llvm_backend::FileType::Object, std::path::Path::new("urcl.o"));
-    codegen.write_obj(urcl_llvm_backend::FileType::Assembly, std::path::Path::new("urcl.asm"));
+    codegen.write_obj(
+        urcl_llvm_backend::FileType::Object,
+        std::path::Path::new("urcl.o"),
+    );
+    codegen.write_obj(
+        urcl_llvm_backend::FileType::Assembly,
+        std::path::Path::new("urcl.asm"),
+    );
 }

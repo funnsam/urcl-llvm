@@ -1,0 +1,72 @@
+bits 8
+
+@define case_result %numb
+@define test_cases %int
+@define test_end %text
+@define test_end_data '\n'
+imm r1 1
+
+// sp is rw
+    mov sp 69
+    mov r1 sp
+    sub r1 r1 69
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1
+
+// sp affects stack pushes and pops
+    psh 75
+    psh 4
+    psh 20
+    inc sp sp
+    psh 69
+
+    pop r1
+    sub r1 r1 69
+    out case_result r1
+
+    pop r1
+    sub r1 r1 4
+    out case_result r1
+
+    pop r1
+    sub r1 r1 75
+    out case_result r1
+
+    imm r1 1
+    dec sp sp
+
+    pop r1
+    sub r1 r1 75
+    out case_result r1
+out test_cases 4
+out test_end test_end_data
+imm r1 1
+
+// pc reg is readable
+    .pc_read_first
+    mov r1 pc
+    bne .pc_read_fail r1 .pc_read_first
+
+    out case_result 0
+    jmp .pc_read_end
+
+    .pc_read_fail
+    out case_result 1
+.pc_read_end
+out test_cases 1
+out test_end test_end_data
+imm r1 1
+
+// pc reg can be used to jump
+    mov pc .pc_write_ok
+    out case_result 1
+    jmp .pc_write_end
+
+    .pc_write_ok
+    out case_result 0
+.pc_write_end
+out test_cases 1
+out test_end test_end_data
+imm r1 1

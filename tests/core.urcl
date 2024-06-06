@@ -4,6 +4,7 @@ bits 8
 @define test_cases %int
 @define test_end %text
 @define test_end_data '\n'
+imm r1 1
 
 // sub (tested first because it is important)
     sub r1 5 5

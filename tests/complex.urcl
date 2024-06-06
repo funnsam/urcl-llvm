@@ -1,0 +1,35 @@
+bits 8
+
+@define case_result %numb
+@define test_cases %int
+@define test_end %text
+@define test_end_data '\n'
+imm r1 1
+
+// Mlt [r a a],
+// Div [r a a],
+// Mod [r a a],
+// Bsr [r a a],
+// Bsl [r a a],
+// Srs [r a],
+// Bss [r a a],
+// SetE [r a a],
+// SetNe [r a a],
+// SetG [r a a],
+// SetL [r a a],
+// SetGe [r a a],
+// SetLe [r a a],
+// SetC [r a a],
+// SetNc [r a a],
+// LLod [r a a],
+// LStr [a a a],
+// SDiv [r a a],
+// SBrl [a a a],
+// SBrg [r a a],
+// SBle [a a a],
+// SBge [a a a],
+// SSetG [r a a],
+// SSetL [r a a],
+// SSetGe [r a a],
+// SSetLe [r a a],
+// Abs [r a],

@@ -1,0 +1,4 @@
+bits 32
+
+// https://www.h-schmidt.net/FloatConverter/IEEE754.html
+out %float 0x428ad70a

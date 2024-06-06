@@ -4,11 +4,17 @@
 #include <time.h>
 
 extern uint64_t urcl_main();
+typedef uint32_t urcl_t;
 
-uint32_t urcl_in(uint32_t port) {
+union WordAndFloat {
+    urcl_t w;
+    float f;
+};
+
+urcl_t urcl_in(urcl_t port) {
     switch (port) {
         case 40: {
-            return (uint32_t) rand();
+            return (urcl_t) rand();
         }
         default: {
             printf("\n\x1b[1;33mW:\x1b[0m unknown port %%%u was read\n", port);
@@ -17,7 +23,7 @@ uint32_t urcl_in(uint32_t port) {
     }
 }
 
-void urcl_out(uint32_t port, uint32_t data) {
+void urcl_out(urcl_t port, urcl_t data) {
     switch (port) {
         case 1: {
             putchar(data);
@@ -45,7 +51,8 @@ void urcl_out(uint32_t port, uint32_t data) {
             break;
         }
         case 28: {
-            printf("%f", *((float*) &data));
+            union WordAndFloat f = { .w = data };
+            printf("%f", f.f);
             break;
         }
         case 40: {
