@@ -412,7 +412,10 @@ impl<'a> Parser<'a> {
             instructions: instructions
                 .iter()
                 .map(|i| {
-                    ast::Instruction::construct(i.0, i.1.iter().map(|i| self.finalize(i, dw_len)).collect())
+                    ast::Instruction::construct(
+                        i.0,
+                        i.1.iter().map(|i| self.finalize(i, dw_len)).collect(),
+                    )
                 })
                 .collect(),
             dw: dw

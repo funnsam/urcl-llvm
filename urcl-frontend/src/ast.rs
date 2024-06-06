@@ -257,8 +257,8 @@ impl fmt::Display for Instruction {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let j = format!("{self:?}");
         let i = InstructionDiscriminants::from(self).to_string();
-        let k = j.get((i.len()+1)..(j.len()-1)).unwrap_or("");
-        writeln!(f, "{i} {}", k.replace(',', ""))
+        let k = j.get((i.len() + 1)..(j.len() - 1)).unwrap_or("");
+        write!(f, "{i} {}", k.replace(',', ""))
     }
 }
 
@@ -271,7 +271,7 @@ impl fmt::Display for Program {
         writeln!(f, "\n// inst")?;
 
         for i in self.instructions.iter() {
-            i.fmt(f)?;
+            writeln!(f, "{i}")?;
         }
 
         writeln!(f, "\n// dw")?;
