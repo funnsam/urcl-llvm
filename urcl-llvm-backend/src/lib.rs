@@ -17,11 +17,11 @@ pub struct Codegen<'a> {
     builder: builder::Builder<'a>,
     module: module::Module<'a>,
 
-    program: ast::Program,
+    program: &'a ast::Program,
 }
 
 impl<'a> Codegen<'a> {
-    pub fn new(context: &'a CodegenContext, program: ast::Program) -> Self {
+    pub fn new(context: &'a CodegenContext, program: &'a ast::Program) -> Self {
         Self {
             context: &context.0,
             builder: context.0.create_builder(),
@@ -162,19 +162,6 @@ impl<'a> Codegen<'a> {
                 self.builder.build_store(p, v).unwrap();
             };
 
-            self.builder.position_at_end(inst_bb[pc]);
-
-            let inst_cnt_v = self
-                .builder
-                .build_load(mach_t, inst_cnt, "inst_cnt_v")
-                .unwrap()
-                .into_int_value();
-            let update = self
-                .builder
-                .build_int_add(inst_cnt_v, mach_t.const_int(1, false), "inst_cnt_v_update")
-                .unwrap();
-            self.builder.build_store(inst_cnt, update).unwrap();
-
             let cond_br = |c, d: &_| match d {
                 ast::Any::Immediate(d) => {
                     self.builder
@@ -199,6 +186,19 @@ impl<'a> Codegen<'a> {
                 },
                 ast::Any::Register(d) => gen_big_switch_table(get_reg(d)),
             };
+
+            self.builder.position_at_end(inst_bb[pc]);
+
+            let inst_cnt_v = self
+                .builder
+                .build_load(mach_t, inst_cnt, "inst_cnt_v")
+                .unwrap()
+                .into_int_value();
+            let update = self
+                .builder
+                .build_int_add(inst_cnt_v, mach_t.const_int(1, false), "inst_cnt_v_update")
+                .unwrap();
+            self.builder.build_store(inst_cnt, update).unwrap();
 
             let push = |v| {
                 let sp_old = self.builder.build_load(word_t, stack_ptr, "stack_ptr_pre_dec").unwrap().into_int_value();
@@ -353,6 +353,16 @@ impl<'a> Codegen<'a> {
                         .unwrap();
                 },
                 ast::Instruction::Pop(d) => gen!(none d pop),
+                ast::Instruction::Cal(a) => {
+                    push(word_t.const_int(pc as u64 + 1, false));
+                    uncond_br(a);
+                },
+                ast::Instruction::Ret() => {
+                    gen_big_switch_table(pop());
+                },
+                ast::Instruction::Cpy(a, b) => {
+                    write_ram(get_any(a), read_ram(get_any(b)));
+                },
                 ast::Instruction::Out(p, v) => {
                     let p = get_any(p);
                     let v = get_any(v);
@@ -389,9 +399,9 @@ impl<'a> Codegen<'a> {
         let target = targets::Target::from_triple(&triple).unwrap();
         let cpu = targets::TargetMachine::get_host_cpu_name();
         let features = targets::TargetMachine::get_host_cpu_features();
-        let reloc = targets::RelocMode::Default;
+        let reloc = targets::RelocMode::DynamicNoPic;
         let model = targets::CodeModel::Default;
-        let opt = OptimizationLevel::None;
+        let opt = OptimizationLevel::Aggressive;
 
         let target_machine = target
             .create_target_machine(

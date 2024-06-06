@@ -307,9 +307,37 @@ out test_cases 4
 out test_end test_end_data
 imm r1 1
 
-// Cal [a],
-// Ret [],
+// cal and ret
+    cal .cal_test
+    .cal_after
+    jmp .cal_ok
+    .cal_test
+        pop r1
+        sub r2 r1 .cal_after
+        out %numb r2
+        psh r1
 
-// Cpy [a a],
+        ret
+
+        // unreachable normally
+        out %numb 1
+    .cal_ok
+out test_cases 1
+out test_end test_end_data
+imm r1 1
+
+// cpy
+    str m0 69
+    cpy m1 m0
+    lod r1 m1
+    sub r1 r1 69
+    out %numb r1
+    lod r1 m0
+    sub r1 r1 69
+    out %numb r1
+out test_cases 2
+out test_end test_end_data
+imm r1 1
+
 // Brc [a a a],
 // Bnc [a a a],

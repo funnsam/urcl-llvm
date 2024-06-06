@@ -49,7 +49,7 @@ void urcl_out(uint8_t port, uint8_t data) {
 }
 
 int main() {
-    uint64_t inst = urcl_main();
+    (void) urcl_main();
     printf("\x1b[32mI:\x1b[0m %i cases failed\n", failed);
     return failed;
 }

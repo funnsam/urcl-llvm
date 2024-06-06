@@ -262,6 +262,22 @@ impl fmt::Display for Instruction {
     }
 }
 
+impl Instruction {
+    fn fmt_san(&self, f: &mut fmt::Formatter, bits: usize) -> fmt::Result {
+        let j = format!("{self:?}");
+        let i = InstructionDiscriminants::from(self).to_string();
+        let k = j.get((i.len() + 1)..(j.len() - 1)).unwrap_or("");
+        let v = k.split(", ").map(|i| match i.chars().nth(0) {
+            Some(c) if c.is_ascii_digit() => {
+                let v = i.parse::<i128>().unwrap();
+                (v & ((1 << (bits as i128)) - 1)).to_string()
+            }
+            _ => i.to_string(),
+        }).collect::<Vec<_>>().join(" ");
+        write!(f, "{i} {v}")
+    }
+}
+
 impl fmt::Display for Program {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(f, "bits {}", self.bits)?;
@@ -271,7 +287,8 @@ impl fmt::Display for Program {
         writeln!(f, "\n// inst")?;
 
         for i in self.instructions.iter() {
-            writeln!(f, "{i}")?;
+            i.fmt_san(f, self.bits)?;
+            writeln!(f)?;
         }
 
         writeln!(f, "\n// dw")?;

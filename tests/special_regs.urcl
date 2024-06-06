@@ -7,8 +7,10 @@ bits 8
 imm r1 1
 
 // sp is rw
+    mov r2 sp
     mov sp 69
     mov r1 sp
+    mov sp r2
     sub r1 r1 69
     out case_result r1
 out test_cases 1
