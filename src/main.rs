@@ -14,10 +14,7 @@ fn main() {
         urcl_llvm_backend::FileType::Object,
         std::path::Path::new("urcl.o"),
     );
-    codegen.write_obj(
-        urcl_llvm_backend::FileType::Assembly,
-        std::path::Path::new("urcl.asm"),
-    );
+    codegen.dump_opt();
 
-    println!("{program}");
+    // println!("{program}");
 }

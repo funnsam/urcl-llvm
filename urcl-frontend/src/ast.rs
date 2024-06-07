@@ -267,13 +267,17 @@ impl Instruction {
         let j = format!("{self:?}");
         let i = InstructionDiscriminants::from(self).to_string();
         let k = j.get((i.len() + 1)..(j.len() - 1)).unwrap_or("");
-        let v = k.split(", ").map(|i| match i.chars().nth(0) {
-            Some(c) if c.is_ascii_digit() => {
-                let v = i.parse::<i128>().unwrap();
-                (v & ((1 << (bits as i128)) - 1)).to_string()
-            }
-            _ => i.to_string(),
-        }).collect::<Vec<_>>().join(" ");
+        let v = k
+            .split(", ")
+            .map(|i| match i.chars().nth(0) {
+                Some(c) if c.is_ascii_digit() => {
+                    let v = i.parse::<i128>().unwrap();
+                    (v & ((1 << (bits as i128)) - 1)).to_string()
+                },
+                _ => i.to_string(),
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
         write!(f, "{i} {v}")
     }
 }

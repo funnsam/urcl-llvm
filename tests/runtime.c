@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 extern uint64_t urcl_main();
 
@@ -13,6 +14,7 @@ uint8_t urcl_in(uint8_t port) {
     }
 }
 
+int total_t = 0;
 int test_no = 1;
 int t_case = 0;
 int failed = 0;
@@ -41,6 +43,10 @@ void urcl_out(uint8_t port, uint8_t data) {
             }
             break;
         }
+        case 25: {
+            total_t = (int) data;
+            break;
+        }
         default: {
             printf("\x1b[1;33mW:\x1b[0m unknown port %%%u was written to with %u\n", port, data);
             break;
@@ -50,6 +56,12 @@ void urcl_out(uint8_t port, uint8_t data) {
 
 int main() {
     (void) urcl_main();
-    printf("\x1b[32mI:\x1b[0m %i cases failed\n", failed);
-    return failed;
+    printf("\x1b[1;32mI:\x1b[0m %i cases failed\n", failed);
+
+    bool fails = (total_t != test_no - 1) || (total_t == 0);
+    if (fails) {
+        printf("\x1b[1;31mE:\x1b[0m expected to run %i tests, ran %i instead\n", total_t, test_no - 1);
+    }
+
+    return failed + (int) fails;
 }

@@ -4,7 +4,10 @@ bits 8
 @define test_cases %int
 @define test_end %text
 @define test_end_data '\n'
+@define total_tests %uint
 imm r1 1
+
+out total_tests 7
 
 // sub (tested first because it is important)
     sub r1 5 5
@@ -48,7 +51,21 @@ imm r1 1
     lod r1 m1
     sub r1 r1 42
     out case_result r1
-out test_cases 2
+
+    imm r1 m0
+    str r1 42
+    imm r1 m1
+    str m1 69
+
+    lod r1 r1
+    sub r1 r1 69
+    out case_result r1
+
+    imm r1 m0
+    lod r1 r1
+    sub r1 r1 42
+    out case_result r1
+out test_cases 4
 out test_end test_end_data
 imm r1 1
 

@@ -7,7 +7,10 @@ minheap 2
 @define test_cases %int
 @define test_end %text
 @define test_end_data '\n'
+@define total_tests %uint
 imm r1 1
+
+out total_tests 26
 
 // NOTE: `sub` is tested in `core.urcl`
 // NOTE: `nop` and `hlt` are not tested (obviously)
@@ -339,5 +342,36 @@ out test_cases 2
 out test_end test_end_data
 imm r1 1
 
-// Brc [a a a],
-// Bnc [a a a],
+// brc
+    brc .brc_ok_1 0xd9 0xcb
+    out case_result 1
+
+    .brc_ok_1
+    out case_result 0
+    brc .brc_fail_2 4 8
+    out case_result 0
+    bge .brc_ok_2 r0 r0
+
+    .brc_fail_2
+    out case_result 2
+    .brc_ok_2
+out test_cases 2
+out test_end test_end_data
+imm r1 1
+
+// bnc
+    bnc .bnc_ok_1 3 5
+    out case_result 1
+
+    .bnc_ok_1
+    out case_result 0
+    bnc .bnc_fail_2 0xd8 0xcd
+    out case_result 0
+    bge .bnc_ok_2 r0 r0
+
+    .bnc_fail_2
+    out case_result 2
+    .bnc_ok_2
+out test_cases 2
+out test_end test_end_data
+imm r1 1

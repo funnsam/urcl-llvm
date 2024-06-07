@@ -4,7 +4,10 @@ bits 8
 @define test_cases %int
 @define test_end %text
 @define test_end_data '\n'
+@define total_tests %uint
 imm r1 1
+
+out total_tests 4
 
 // sp is rw
     mov r2 sp

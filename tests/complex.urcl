@@ -4,6 +4,13 @@ bits 8
 @define test_cases %int
 @define test_end %text
 @define test_end_data '\n'
+@define total_tests %uint
+imm r1 1
+
+out total_tests 1
+
+out test_cases 0
+out test_end test_end_data
 imm r1 1
 
 // Mlt [r a a],

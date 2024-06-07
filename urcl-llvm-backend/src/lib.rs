@@ -52,12 +52,16 @@ impl<'a> Codegen<'a> {
         self.builder.position_at_end(entry);
 
         let registers = (1..=self.program.registers)
-            .map(|r| self.builder.build_alloca(word_t, &format!("r{r}")).unwrap())
+            .map(|r| {
+                let r = self.builder.build_alloca(word_t, &format!("r{r}")).unwrap();
+                self.builder.build_store(r, word_0).unwrap();
+                r
+            })
             .collect::<Vec<_>>();
 
         let ram_size = self.program.stack_size + self.program.heap_size + self.program.dw.len();
-        let ram = word_t.array_type(ram_size as _);
-        let ram = self.builder.build_alloca(ram, "ram").unwrap();
+        let ram_t = word_t.array_type(ram_size as _);
+        let ram = self.builder.build_alloca(ram_t, "ram").unwrap();
         let dw = word_t.const_array(
             self.program
                 .dw
@@ -66,10 +70,13 @@ impl<'a> Codegen<'a> {
                 .collect::<Vec<_>>()
                 .as_slice(),
         );
+        self.builder.build_store(ram, ram_t.const_zero()).unwrap();
         self.builder.build_store(ram, dw).unwrap();
 
         let stack_ptr = self.builder.build_alloca(word_t, "sp").unwrap();
-        self.builder.build_store(stack_ptr, word_t.const_int(ram_size as _, false)).unwrap();
+        self.builder
+            .build_store(stack_ptr, word_t.const_int(ram_size as _, false))
+            .unwrap();
 
         let inst_cnt = self.builder.build_alloca(mach_t, "inst_cnt").unwrap();
         self.builder
@@ -146,7 +153,7 @@ impl<'a> Codegen<'a> {
             let read_ram = |a| unsafe {
                 let p = self
                     .builder
-                    .build_gep(word_t, ram, &[a], "ram_gep")
+                    .build_in_bounds_gep(word_t, ram, &[a], "ram_gep")
                     .unwrap();
                 self.builder
                     .build_load(word_t, p, "read_ram")
@@ -157,7 +164,7 @@ impl<'a> Codegen<'a> {
             let write_ram = |a, v: values::IntValue| unsafe {
                 let p = self
                     .builder
-                    .build_gep(word_t, ram, &[a], "ram_gep")
+                    .build_in_bounds_gep(word_t, ram, &[a], "ram_gep")
                     .unwrap();
                 self.builder.build_store(p, v).unwrap();
             };
@@ -201,16 +208,30 @@ impl<'a> Codegen<'a> {
             self.builder.build_store(inst_cnt, update).unwrap();
 
             let push = |v| {
-                let sp_old = self.builder.build_load(word_t, stack_ptr, "stack_ptr_pre_dec").unwrap().into_int_value();
-                let sp_new = self.builder.build_int_sub(sp_old, word_1, "stack_ptr_dec").unwrap();
+                let sp_old = self
+                    .builder
+                    .build_load(word_t, stack_ptr, "stack_ptr_pre_dec")
+                    .unwrap()
+                    .into_int_value();
+                let sp_new = self
+                    .builder
+                    .build_int_sub(sp_old, word_1, "stack_ptr_dec")
+                    .unwrap();
                 self.builder.build_store(stack_ptr, sp_new).unwrap();
 
                 write_ram(sp_new, v);
             };
 
             let pop = || {
-                let sp_old = self.builder.build_load(word_t, stack_ptr, "stack_ptr_pre_inc").unwrap().into_int_value();
-                let sp_new = self.builder.build_int_add(sp_old, word_1, "stack_ptr_inc").unwrap();
+                let sp_old = self
+                    .builder
+                    .build_load(word_t, stack_ptr, "stack_ptr_pre_inc")
+                    .unwrap()
+                    .into_int_value();
+                let sp_new = self
+                    .builder
+                    .build_int_add(sp_old, word_1, "stack_ptr_inc")
+                    .unwrap();
                 self.builder.build_store(stack_ptr, sp_new).unwrap();
 
                 read_ram(sp_old)
@@ -362,6 +383,50 @@ impl<'a> Codegen<'a> {
                 },
                 ast::Instruction::Cpy(a, b) => {
                     write_ram(get_any(a), read_ram(get_any(b)));
+                    self.builder
+                        .build_unconditional_branch(inst_bb[pc + 1])
+                        .unwrap();
+                },
+                ast::Instruction::Brc(d, a, b) => {
+                    gen!(2bc d a b |a: values::IntValue<'a>, b: values::IntValue<'a>| {
+                        let add_ov = intrinsics::Intrinsic::find("llvm.uadd.with.overflow")
+                            .unwrap()
+                            .get_declaration(&self.module, &[word_t.into()])
+                            .unwrap();
+
+                        let add = self.builder
+                            .build_call(add_ov, &[a.into(), b.into()], "urcl_brc_check")
+                            .unwrap()
+                            .try_as_basic_value()
+                            .unwrap_left()
+                            .into_struct_value();
+                        self.builder
+                            .build_extract_value(add, 1, "urcl_brc")
+                            .unwrap()
+                            .into_int_value()
+                    })
+                },
+                ast::Instruction::Bnc(d, a, b) => {
+                    gen!(2bc d a b |a: values::IntValue<'a>, b: values::IntValue<'a>| {
+                        let add_ov = intrinsics::Intrinsic::find("llvm.uadd.with.overflow")
+                            .unwrap()
+                            .get_declaration(&self.module, &[word_t.into()])
+                            .unwrap();
+
+                        let add = self.builder
+                            .build_call(add_ov, &[a.into(), b.into()], "urcl_bnc_check")
+                            .unwrap()
+                            .try_as_basic_value()
+                            .unwrap_left()
+                            .into_struct_value();
+                        let ov = self.builder
+                            .build_extract_value(add, 1, "urcl_bnc_ov")
+                            .unwrap()
+                            .into_int_value();
+                        self.builder
+                            .build_not(ov, "urcl_bnc")
+                            .unwrap()
+                    })
                 },
                 ast::Instruction::Out(p, v) => {
                     let p = get_any(p);
@@ -390,6 +455,16 @@ impl<'a> Codegen<'a> {
         self.module
             .print_to_file(std::path::Path::new("urcl.ll"))
             .unwrap();
+        self.module
+            .write_bitcode_to_path(std::path::Path::new("urcl.bc"));
+    }
+
+    pub fn dump_opt(&self) {
+        self.module
+            .print_to_file(std::path::Path::new("urcl.opt.ll"))
+            .unwrap();
+        self.module
+            .write_bitcode_to_path(std::path::Path::new("urcl.opt.bc"));
     }
 
     pub fn write_obj(&self, ft: targets::FileType, path: &std::path::Path) {
@@ -414,8 +489,19 @@ impl<'a> Codegen<'a> {
             )
             .unwrap();
 
+        let pass = passes::PassBuilderOptions::create();
+        self.module
+            .run_passes(OPT_O3_PASSES, &target_machine, pass)
+            .unwrap();
+
         target_machine
             .write_to_file(&self.module, ft, path)
             .unwrap();
     }
 }
+
+// HACK:
+// if it doesn't work on your machine then copy ```
+// llvm-as-17 < /dev/null | opt-17 --print-pipeline-passes -O3 2> /dev/null
+// ```
+const OPT_O3_PASSES: &str = "annotation2metadata,forceattrs,inferattrs,coro-early,function<eager-inv>(lower-expect,simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;no-switch-range-to-icmp;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-sink-common-insts;speculate-blocks;simplify-cond-branch>,sroa<modify-cfg>,early-cse<>,callsite-splitting),openmp-opt,ipsccp,called-value-propagation,globalopt,function<eager-inv>(mem2reg,instcombine<max-iterations=1000;no-use-loop-info>,simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-sink-common-insts;speculate-blocks;simplify-cond-branch>),require<globals-aa>,function(invalidate<aa>),require<profile-summary>,cgscc(devirt<4>(inline<only-mandatory>,inline,function-attrs<skip-non-recursive>,argpromotion,openmp-opt-cgscc,function<eager-inv;no-rerun>(sroa<modify-cfg>,early-cse<memssa>,speculative-execution,jump-threading,correlated-propagation,simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-sink-common-insts;speculate-blocks;simplify-cond-branch>,instcombine<max-iterations=1000;no-use-loop-info>,aggressive-instcombine,constraint-elimination,libcalls-shrinkwrap,tailcallelim,simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-sink-common-insts;speculate-blocks;simplify-cond-branch>,reassociate,loop-mssa(loop-instsimplify,loop-simplifycfg,licm<no-allowspeculation>,loop-rotate<header-duplication;no-prepare-for-lto>,licm<allowspeculation>,simple-loop-unswitch<nontrivial;trivial>),simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-sink-common-insts;speculate-blocks;simplify-cond-branch>,instcombine<max-iterations=1000;no-use-loop-info>,loop(loop-idiom,indvars,loop-deletion,loop-unroll-full),sroa<modify-cfg>,vector-combine,mldst-motion<no-split-footer-bb>,gvn<>,sccp,bdce,instcombine<max-iterations=1000;no-use-loop-info>,jump-threading,correlated-propagation,adce,memcpyopt,dse,move-auto-init,loop-mssa(licm<allowspeculation>),coro-elide,simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;no-switch-to-lookup;keep-loops;hoist-common-insts;sink-common-insts;speculate-blocks;simplify-cond-branch>,instcombine<max-iterations=1000;no-use-loop-info>),function-attrs,function(require<should-not-run-function-passes>),coro-split)),deadargelim,coro-cleanup,globalopt,globaldce,elim-avail-extern,rpo-function-attrs,recompute-globalsaa,function<eager-inv>(float2int,lower-constant-intrinsics,chr,loop(loop-rotate<header-duplication;no-prepare-for-lto>,loop-deletion),loop-distribute,inject-tli-mappings,loop-vectorize<no-interleave-forced-only;no-vectorize-forced-only;>,loop-load-elim,instcombine<max-iterations=1000;no-use-loop-info>,simplifycfg<bonus-inst-threshold=1;forward-switch-cond;switch-range-to-icmp;switch-to-lookup;no-keep-loops;hoist-common-insts;sink-common-insts;speculate-blocks;simplify-cond-branch>,slp-vectorizer,vector-combine,instcombine<max-iterations=1000;no-use-loop-info>,loop-unroll<O3>,transform-warning,sroa<preserve-cfg>,instcombine<max-iterations=1000;no-use-loop-info>,loop-mssa(licm<allowspeculation>),alignment-from-assumptions,loop-sink,instsimplify,div-rem-pairs,tailcallelim,simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-sink-common-insts;speculate-blocks;simplify-cond-branch>),globaldce,constmerge,cg-profile,rel-lookup-table-converter,function(annotation-remarks),verify";

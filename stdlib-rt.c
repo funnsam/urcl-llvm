@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <time.h>
+#include <locale.h>
 
 extern uint64_t urcl_main();
 typedef uint32_t urcl_t;
@@ -67,6 +68,7 @@ void urcl_out(urcl_t port, urcl_t data) {
 }
 
 int main() {
+    setlocale(LC_NUMERIC, "");
     struct timespec start, end;
     clock_gettime(CLOCK_REALTIME, &start);
 
@@ -76,6 +78,6 @@ int main() {
 
     double time = (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec) * 1e-9;
 
-    printf("\n\x1b[32mI:\x1b[0m ran %lu instructions in %.1fs (%.1fHz)\n", inst, time, ((double) inst) / time);
+    printf("\n\x1b[32mI:\x1b[0m ran %'lu instructions in %'.1fs (%'.1fHz)\n", inst, time, ((double) inst) / time);
     return 0;
 }
