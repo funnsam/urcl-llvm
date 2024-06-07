@@ -7,36 +7,113 @@ bits 8
 @define total_tests %uint
 imm r1 1
 
-out total_tests 1
+out total_tests 11
 
-out test_cases 0
+// mlt
+    mlt r1 0x69 0x42
+    sub r1 r1 18
+    out case_result r1
+out test_cases 1
 out test_end test_end_data
 imm r1 1
 
-// Mlt [r a a],
-// Div [r a a],
-// Mod [r a a],
-// Bsr [r a a],
-// Bsl [r a a],
-// Srs [r a],
-// Bss [r a a],
-// SetE [r a a],
-// SetNe [r a a],
-// SetG [r a a],
-// SetL [r a a],
-// SetGe [r a a],
-// SetLe [r a a],
-// SetC [r a a],
-// SetNc [r a a],
-// LLod [r a a],
-// LStr [a a a],
-// SDiv [r a a],
-// SBrl [a a a],
-// SBrg [r a a],
-// SBle [a a a],
-// SBge [a a a],
-// SSetG [r a a],
-// SSetL [r a a],
-// SSetGe [r a a],
-// SSetLe [r a a],
-// Abs [r a],
+// div (rounds towards 0)
+    div r1 250 3
+    sub r1 r1 83
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1
+
+// mod
+    mod r1 250 3
+    sub r1 r1 1
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 2
+
+// bsr
+    bsr r1 0x80 7
+    sub r1 r1 1
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1
+
+// bsl
+    bsl r1 0x01 7
+    sub r1 r1 0x80
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1
+
+// srs
+    srs r1 0x80
+    sub r1 r1 0xc0
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1
+
+// bss
+    bss r1 0x80 7
+    sub r1 r1 0xff
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1
+
+// sete
+// setne
+// setg
+// setl
+// setge
+// setle
+// setc
+// setnc
+
+// llod (and also default minheap)
+    str m15 0x69
+    llod r1 m3 12
+    sub r1 r1 0x69
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1
+
+// lstr
+    lstr m3 12 0x42
+    lod r1 m15
+    sub r1 r1 0x42
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1
+
+// sdiv (rounds towards 0)
+    sdiv r1 250 3
+    sub r1 r1 254
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1
+
+// sbrl
+// sbrg
+// sble
+// sbge
+
+// ssetg
+// ssetl
+// ssetge
+// ssetle
+
+// abs
+    abs r1 0x96
+    sub r1 r1 0x6a
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1

@@ -1,9 +1,9 @@
-CC_FLAGS=-Wpedantic -Wall -Wextra
+CC_FLAGS=-Wpedantic -Wall -Wextra -std=gnu23 -lrt
 CC=gcc
 LD_FLAGS=-O3
 LD=gcc
 
-test: test_runtime.o core basic special_regs complex
+test: test_runtime.o core basic1 basic2 special_regs complex
 
 test_runtime.o:
 	$(CC) tests/runtime.c -c -o test_runtime.o $(CC_FLAGS)
@@ -13,8 +13,13 @@ core: test_runtime.o
 	$(LD) urcl.o test_runtime.o $(LD_FLAGS)
 	./a.out
 
-basic: test_runtime.o
-	cargo r -r -- tests/basic.urcl
+basic1: test_runtime.o
+	cargo r -r -- tests/basic1.urcl
+	$(LD) urcl.o test_runtime.o $(LD_FLAGS)
+	./a.out
+
+basic2: test_runtime.o
+	cargo r -r -- tests/basic2.urcl
 	$(LD) urcl.o test_runtime.o $(LD_FLAGS)
 	./a.out
 

@@ -10,7 +10,7 @@ minheap 2
 @define total_tests %uint
 imm r1 1
 
-out total_tests 26
+out total_tests 16
 
 // NOTE: `sub` is tested in `core.urcl`
 // NOTE: `nop` and `hlt` are not tested (obviously)
@@ -118,19 +118,19 @@ out test_end test_end_data
 imm r1 1
 
 // brl
-    brl .brl_ok_1 3 5
+    brl .brl_ok_1 240 246
     out case_result 1
 
     .brl_ok_1
     out case_result 0
-    brl .brl_fail_2 5 3
+    brl .brl_fail_2 246 240
     out case_result 0
     bge .brl_ok_2 r0 r0
     .brl_fail_2
     out case_result 2
 
     .brl_ok_2
-    brl .brl_fail_3 3 3
+    brl .brl_fail_3 240 240
     out case_result 0
     bge .brl_ok_3 r0 r0
     .brl_fail_3
@@ -141,19 +141,19 @@ out test_end test_end_data
 imm r1 1
 
 // brg
-    brg .brg_ok_1 5 3
+    brg .brg_ok_1 246 240
     out case_result 1
 
     .brg_ok_1
     out case_result 0
-    brg .brg_fail_2 3 5
+    brg .brg_fail_2 240 246
     out case_result 0
     bge .brg_ok_2 r0 r0
     .brg_fail_2
     out case_result 2
 
     .brg_ok_2
-    brg .brg_fail_3 3 3
+    brg .brg_fail_3 240 240
     out case_result 0
     bge .brg_ok_3 r0 r0
     .brg_fail_3
@@ -193,185 +193,6 @@ imm r1 1
     .bne_fail_2
     out case_result 2
     .bne_ok_2
-out test_cases 2
-out test_end test_end_data
-imm r1 1
-
-// bod
-    bod .bod_ok_1 9
-    out case_result 1
-    .bod_ok_1
-    out case_result 0
-
-    bod .bod_fail_2 6
-    out case_result 0
-    bge .bod_ok_2 r0 r0
-    .bod_fail_2
-    out case_result 2
-    .bod_ok_2
-out test_cases 2
-out test_end test_end_data
-imm r1 1
-
-// bev
-    bev .bev_ok_1 6
-    out case_result 1
-    .bev_ok_1
-    out case_result 0
-
-    bev .bev_fail_2 9
-    out case_result 0
-    bge .bev_ok_2 r0 r0
-    .bev_fail_2
-    out case_result 2
-    .bev_ok_2
-out test_cases 2
-out test_end test_end_data
-imm r1 1
-
-// ble
-    ble .ble_ok_1 3 5
-    out case_result 1
-
-    .ble_ok_1
-    out case_result 0
-    ble .ble_fail_2 5 3
-    out case_result 0
-    bge .ble_ok_2 r0 r0
-    .ble_fail_2
-    out case_result 2
-
-    .ble_ok_2
-    ble .ble_ok_3 3 3
-    out case_result 3
-    .ble_ok_3
-    out case_result 0
-out test_cases 3
-out test_end test_end_data
-imm r1 1
-
-// brz
-    brz .brz_ok_1 256
-    out case_result 1
-
-    .brz_ok_1
-    out case_result 0
-    brz .brz_fail_2 69
-    out case_result 0
-    bge .brz_ok_2 r0 r0
-
-    .brz_fail_2
-    out case_result 2
-    .brz_ok_2
-out test_cases 2
-out test_end test_end_data
-imm r1 1
-
-// bnz
-    bnz .bnz_ok_1 69
-    out case_result 1
-
-    .bnz_ok_1
-    out case_result 0
-    bnz .bnz_fail_2 256
-    out case_result 0
-    bge .bnz_ok_2 r0 r0
-
-    .bnz_fail_2
-    out case_result 2
-    .bnz_ok_2
-out test_cases 2
-out test_end test_end_data
-imm r1 1
-
-// Brn [a a],
-// Brp [a a],
-
-// psh & pop
-    psh 69
-    psh 42
-
-    sub r1 sp 2
-    out case_result r1
-
-    lod r1 2
-    sub r1 r1 42
-    out case_result r1
-    imm r1 1
-
-    pop r1
-    sub r1 r1 42
-    out case_result r1
-
-    pop r1
-    sub r1 r1 69
-    out case_result r1
-out test_cases 4
-out test_end test_end_data
-imm r1 1
-
-// cal and ret
-    cal .cal_test
-    .cal_after
-    jmp .cal_ok
-    .cal_test
-        pop r1
-        sub r2 r1 .cal_after
-        out %numb r2
-        psh r1
-
-        ret
-
-        // unreachable normally
-        out %numb 1
-    .cal_ok
-out test_cases 1
-out test_end test_end_data
-imm r1 1
-
-// cpy
-    str m0 69
-    cpy m1 m0
-    lod r1 m1
-    sub r1 r1 69
-    out %numb r1
-    lod r1 m0
-    sub r1 r1 69
-    out %numb r1
-out test_cases 2
-out test_end test_end_data
-imm r1 1
-
-// brc
-    brc .brc_ok_1 0xd9 0xcb
-    out case_result 1
-
-    .brc_ok_1
-    out case_result 0
-    brc .brc_fail_2 4 8
-    out case_result 0
-    bge .brc_ok_2 r0 r0
-
-    .brc_fail_2
-    out case_result 2
-    .brc_ok_2
-out test_cases 2
-out test_end test_end_data
-imm r1 1
-
-// bnc
-    bnc .bnc_ok_1 3 5
-    out case_result 1
-
-    .bnc_ok_1
-    out case_result 0
-    bnc .bnc_fail_2 0xd8 0xcd
-    out case_result 0
-    bge .bnc_ok_2 r0 r0
-
-    .bnc_fail_2
-    out case_result 2
-    .bnc_ok_2
 out test_cases 2
 out test_end test_end_data
 imm r1 1

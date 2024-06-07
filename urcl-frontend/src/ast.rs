@@ -125,7 +125,7 @@ instr! {
     LStr [a a a],
     SDiv [r a a],
     SBrl [a a a],
-    SBrg [r a a],
+    SBrg [a a a],
     SBle [a a a],
     SBge [a a a],
     SSetG [r a a],

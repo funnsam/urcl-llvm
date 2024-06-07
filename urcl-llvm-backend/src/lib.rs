@@ -47,6 +47,11 @@ impl<'a> Codegen<'a> {
             void.fn_type(&[word_t.into(); 2], false),
             Some(module::Linkage::External),
         );
+        let port_in = self.module.add_function(
+            "urcl_in",
+            word_t.fn_type(&[word_t.into()], false),
+            Some(module::Linkage::External),
+        );
 
         let entry = self.context.append_basic_block(main, "entry");
         self.builder.position_at_end(entry);
@@ -273,6 +278,17 @@ impl<'a> Codegen<'a> {
                     let c = $cond(a);
                     cond_br(c, $d);
                 }};
+                (2set $d: tt $a: tt $b: tt $gen: expr) => {{
+                    let a = get_any($a);
+                    let b = get_any($b);
+                    let c = $gen(a, b);
+                    let c = self.builder.build_int_s_extend(c, word_t, "set_sext").unwrap();
+                    if set_reg($d, c) {
+                        self.builder
+                            .build_unconditional_branch(inst_bb[pc + 1])
+                            .unwrap();
+                    }
+                }};
             }
 
             match i {
@@ -295,77 +311,105 @@ impl<'a> Codegen<'a> {
                     self.builder.build_int_compare(IntPredicate::UGE, a, b, "urcl_bge_cmp").unwrap()
                 }),
                 ast::Instruction::Nor(d, a, b) => gen!(2op d a b |a, b| {
-                    let c = self.builder.build_or(a, b, "nor_urcl_1").unwrap();
-                    self.builder.build_not(c, "nor_urcl_2").unwrap()
+                    let c = self.builder.build_or(a, b, "nor_1").unwrap();
+                    self.builder.build_not(c, "nor_2").unwrap()
                 }),
                 ast::Instruction::Sub(d, a, b) => gen!(2op d a b |a, b| {
-                    self.builder.build_int_sub(a, b, "sub_urcl").unwrap()
+                    self.builder.build_int_sub(a, b, "sub").unwrap()
                 }),
                 ast::Instruction::Imm(d, v) | ast::Instruction::Mov(d, v) => gen!(1op d v |v| v),
-                ast::Instruction::Hlt() => {
-                    ret();
-                },
                 ast::Instruction::Jmp(i) => uncond_br(i),
+                ast::Instruction::Nop() => {
+                    self.builder
+                        .build_unconditional_branch(inst_bb[pc + 1])
+                        .unwrap();
+                },
                 ast::Instruction::Lsh(d, a) => gen!(1op d a |a| {
-                    self.builder.build_left_shift(a, word_1, "lsh_urcl").unwrap()
+                    self.builder.build_left_shift(a, word_1, "lsh").unwrap()
                 }),
                 ast::Instruction::Inc(d, a) => gen!(1op d a |a| {
-                    self.builder.build_int_add(a, word_1, "inc_urcl").unwrap()
+                    self.builder.build_int_add(a, word_1, "inc").unwrap()
                 }),
                 ast::Instruction::Dec(d, a) => gen!(1op d a |a| {
-                    self.builder.build_int_sub(a, word_1, "dec_urcl").unwrap()
+                    self.builder.build_int_sub(a, word_1, "dec").unwrap()
                 }),
                 ast::Instruction::Neg(d, a) => gen!(1op d a |a| {
-                    self.builder.build_int_neg(a, "neg_urcl").unwrap()
+                    self.builder.build_int_neg(a, "neg").unwrap()
                 }),
                 ast::Instruction::And(d, a, b) => gen!(2op d a b |a, b| {
-                    self.builder.build_and(a, b, "and_urcl").unwrap()
+                    self.builder.build_and(a, b, "and").unwrap()
                 }),
                 ast::Instruction::Or(d, a, b) => gen!(2op d a b |a, b| {
-                    self.builder.build_or(a, b, "or_urcl").unwrap()
+                    self.builder.build_or(a, b, "or").unwrap()
                 }),
                 ast::Instruction::Not(d, a) => gen!(1op d a |a| {
-                    self.builder.build_not(a, "not_urcl").unwrap()
+                    self.builder.build_not(a, "not").unwrap()
                 }),
                 ast::Instruction::Xnor(d, a, b) => gen!(2op d a b |a, b| {
-                    let c = self.builder.build_xor(a, b, "xnor_urcl_1").unwrap();
-                    self.builder.build_not(c, "xnor_urcl_2").unwrap()
+                    let c = self.builder.build_xor(a, b, "xnor_1").unwrap();
+                    self.builder.build_not(c, "xnor_2").unwrap()
                 }),
                 ast::Instruction::Xor(d, a, b) => gen!(2op d a b |a, b| {
-                    self.builder.build_xor(a, b, "xor_urcl").unwrap()
+                    self.builder.build_xor(a, b, "xor").unwrap()
                 }),
                 ast::Instruction::Nand(d, a, b) => gen!(2op d a b |a, b| {
-                    let c = self.builder.build_and(a, b, "nand_urcl_1").unwrap();
-                    self.builder.build_not(c, "nand_urcl_2").unwrap()
+                    let c = self.builder.build_and(a, b, "nand_1").unwrap();
+                    self.builder.build_not(c, "nand_2").unwrap()
                 }),
                 ast::Instruction::Brl(d, a, b) => gen!(2bc d a b |a, b| {
-                    self.builder.build_int_compare(IntPredicate::ULT, a, b, "urcl_brl_cmp").unwrap()
+                    self.builder.build_int_compare(IntPredicate::ULT, a, b, "brl_cmp").unwrap()
                 }),
                 ast::Instruction::Brg(d, a, b) => gen!(2bc d a b |a, b| {
-                    self.builder.build_int_compare(IntPredicate::UGT, a, b, "urcl_brg_cmp").unwrap()
+                    self.builder.build_int_compare(IntPredicate::UGT, a, b, "brg_cmp").unwrap()
                 }),
                 ast::Instruction::Bre(d, a, b) => gen!(2bc d a b |a, b| {
-                    self.builder.build_int_compare(IntPredicate::EQ, a, b, "urcl_bre_cmp").unwrap()
+                    self.builder.build_int_compare(IntPredicate::EQ, a, b, "bre_cmp").unwrap()
                 }),
                 ast::Instruction::Bne(d, a, b) => gen!(2bc d a b |a, b| {
-                    self.builder.build_int_compare(IntPredicate::NE, a, b, "urcl_bne_cmp").unwrap()
+                    self.builder.build_int_compare(IntPredicate::NE, a, b, "bne_cmp").unwrap()
                 }),
                 ast::Instruction::Bod(d, a) => gen!(1bc d a |a| {
-                    let b = self.builder.build_and(a, word_1, "urcl_bod_b0").unwrap();
-                    self.builder.build_int_compare(IntPredicate::NE, b, word_0, "urcl_bod_cmp").unwrap()
+                    let b = self.builder.build_and(a, word_1, "bod_b0").unwrap();
+                    self.builder.build_int_compare(IntPredicate::NE, b, word_0, "bod_cmp").unwrap()
                 }),
                 ast::Instruction::Bev(d, a) => gen!(1bc d a |a| {
-                    let b = self.builder.build_and(a, word_1, "urcl_bev_b0").unwrap();
-                    self.builder.build_int_compare(IntPredicate::EQ, b, word_0, "urcl_bev_cmp").unwrap()
+                    let b = self.builder.build_and(a, word_1, "bev_b0").unwrap();
+                    self.builder.build_int_compare(IntPredicate::EQ, b, word_0, "bev_cmp").unwrap()
                 }),
                 ast::Instruction::Ble(d, a, b) => gen!(2bc d a b |a, b| {
-                    self.builder.build_int_compare(IntPredicate::ULE, a, b, "urcl_ble_cmp").unwrap()
+                    self.builder.build_int_compare(IntPredicate::ULE, a, b, "ble_cmp").unwrap()
                 }),
                 ast::Instruction::Brz(d, a) => gen!(1bc d a |a| {
-                    self.builder.build_int_compare(IntPredicate::EQ, a, word_0, "urcl_brz_cmp").unwrap()
+                    self.builder.build_int_compare(IntPredicate::EQ, a, word_0, "brz_cmp").unwrap()
                 }),
                 ast::Instruction::Bnz(d, a) => gen!(1bc d a |a| {
-                    self.builder.build_int_compare(IntPredicate::NE, a, word_0, "urcl_bnz_cmp").unwrap()
+                    self.builder.build_int_compare(IntPredicate::NE, a, word_0, "bnz_cmp").unwrap()
+                }),
+                ast::Instruction::Brn(d, a) => gen!(1bc d a |a| {
+                    let s = self.builder
+                        .build_right_shift(
+                            a,
+                            word_t.const_int((self.program.bits - 1) as _, false),
+                            false,
+                            "brn_sign",
+                        )
+                        .unwrap();
+                    self.builder
+                        .build_int_compare(IntPredicate::NE, s, word_0, "brn_cmp")
+                        .unwrap()
+                }),
+                ast::Instruction::Brp(d, a) => gen!(1bc d a |a| {
+                    let s = self.builder
+                        .build_right_shift(
+                            a,
+                            word_t.const_int((self.program.bits - 1) as _, false),
+                            false,
+                            "brp_sign",
+                        )
+                        .unwrap();
+                    self.builder
+                        .build_int_compare(IntPredicate::EQ, s, word_0, "brp_cmp")
+                        .unwrap()
                 }),
                 ast::Instruction::Psh(v) => {
                     push(get_any(v));
@@ -381,6 +425,7 @@ impl<'a> Codegen<'a> {
                 ast::Instruction::Ret() => {
                     gen_big_switch_table(pop());
                 },
+                ast::Instruction::Hlt() => ret(),
                 ast::Instruction::Cpy(a, b) => {
                     write_ram(get_any(a), read_ram(get_any(b)));
                     self.builder
@@ -395,13 +440,13 @@ impl<'a> Codegen<'a> {
                             .unwrap();
 
                         let add = self.builder
-                            .build_call(add_ov, &[a.into(), b.into()], "urcl_brc_check")
+                            .build_call(add_ov, &[a.into(), b.into()], "brc_check")
                             .unwrap()
                             .try_as_basic_value()
                             .unwrap_left()
                             .into_struct_value();
                         self.builder
-                            .build_extract_value(add, 1, "urcl_brc")
+                            .build_extract_value(add, 1, "brc")
                             .unwrap()
                             .into_int_value()
                     })
@@ -414,36 +459,172 @@ impl<'a> Codegen<'a> {
                             .unwrap();
 
                         let add = self.builder
-                            .build_call(add_ov, &[a.into(), b.into()], "urcl_bnc_check")
+                            .build_call(add_ov, &[a.into(), b.into()], "bnc_check")
                             .unwrap()
                             .try_as_basic_value()
                             .unwrap_left()
                             .into_struct_value();
                         let ov = self.builder
-                            .build_extract_value(add, 1, "urcl_bnc_ov")
+                            .build_extract_value(add, 1, "bnc_ov")
                             .unwrap()
                             .into_int_value();
                         self.builder
-                            .build_not(ov, "urcl_bnc")
+                            .build_not(ov, "bnc")
                             .unwrap()
                     })
                 },
+                ast::Instruction::Mlt(d, a, b) => gen!(2op d a b |a, b| {
+                    self.builder.build_int_mul(a, b, "mul").unwrap()
+                }),
+                ast::Instruction::Div(d, a, b) => gen!(2op d a b |a, b| {
+                    self.builder.build_int_unsigned_div(a, b, "div").unwrap()
+                }),
+                ast::Instruction::Mod(d, a, b) => gen!(2op d a b |a, b| {
+                    self.builder.build_int_unsigned_rem(a, b, "mod").unwrap()
+                }),
+                ast::Instruction::Bsr(d, a, b) => gen!(2op d a b |a, b| {
+                    self.builder.build_right_shift(a, b, false, "bsr").unwrap()
+                }),
+                ast::Instruction::Bsl(d, a, b) => gen!(2op d a b |a, b| {
+                    self.builder.build_left_shift(a, b, "bsl").unwrap()
+                }),
+                ast::Instruction::Srs(d, a) => gen!(1op d a |a| {
+                    self.builder.build_right_shift(a, word_1, true, "srs").unwrap()
+                }),
+                ast::Instruction::Bss(d, a, b) => gen!(2op d a b |a, b| {
+                    self.builder.build_right_shift(a, b, true, "bss").unwrap()
+                }),
+                ast::Instruction::SetE(d, a, b) => gen!(2set d a b |a, b| {
+                    self.builder.build_int_compare(IntPredicate::EQ, a, b, "sete_cmp").unwrap()
+                }),
+                ast::Instruction::SetNe(d, a, b) => gen!(2set d a b |a, b| {
+                    self.builder.build_int_compare(IntPredicate::NE, a, b, "setne_cmp").unwrap()
+                }),
+                ast::Instruction::SetG(d, a, b) => gen!(2set d a b |a, b| {
+                    self.builder.build_int_compare(IntPredicate::UGT, a, b, "setg_cmp").unwrap()
+                }),
+                ast::Instruction::SetL(d, a, b) => gen!(2set d a b |a, b| {
+                    self.builder.build_int_compare(IntPredicate::ULT, a, b, "setl_cmp").unwrap()
+                }),
+                ast::Instruction::SetGe(d, a, b) => gen!(2set d a b |a, b| {
+                    self.builder.build_int_compare(IntPredicate::UGE, a, b, "setge_cmp").unwrap()
+                }),
+                ast::Instruction::SetLe(d, a, b) => gen!(2set d a b |a, b| {
+                    self.builder.build_int_compare(IntPredicate::ULE, a, b, "setle_cmp").unwrap()
+                }),
+                ast::Instruction::SetC(d, a, b) => {
+                    gen!(2set d a b |a: values::IntValue<'a>, b: values::IntValue<'a>| {
+                        let add_ov = intrinsics::Intrinsic::find("llvm.uadd.with.overflow")
+                            .unwrap()
+                            .get_declaration(&self.module, &[word_t.into()])
+                            .unwrap();
+
+                        let add = self.builder
+                            .build_call(add_ov, &[a.into(), b.into()], "setc_check")
+                            .unwrap()
+                            .try_as_basic_value()
+                            .unwrap_left()
+                            .into_struct_value();
+                        self.builder
+                            .build_extract_value(add, 1, "brc")
+                            .unwrap()
+                            .into_int_value()
+                    })
+                },
+                ast::Instruction::SetNc(d, a, b) => {
+                    gen!(2set d a b |a: values::IntValue<'a>, b: values::IntValue<'a>| {
+                        let add_ov = intrinsics::Intrinsic::find("llvm.uadd.with.overflow")
+                            .unwrap()
+                            .get_declaration(&self.module, &[word_t.into()])
+                            .unwrap();
+
+                        let add = self.builder
+                            .build_call(add_ov, &[a.into(), b.into()], "setnc_check")
+                            .unwrap()
+                            .try_as_basic_value()
+                            .unwrap_left()
+                            .into_struct_value();
+                        let ov = self.builder
+                            .build_extract_value(add, 1, "bnc_ov")
+                            .unwrap()
+                            .into_int_value();
+                        self.builder
+                            .build_not(ov, "bnc")
+                            .unwrap()
+                    })
+                },
+                ast::Instruction::LLod(d, a, b) => gen!(2op d a b |a, b| {
+                    let addr = self.builder.build_int_add(a, b, "llod_addr").unwrap();
+                    read_ram(addr)
+                }),
+                ast::Instruction::LStr(a, o, v) => {
+                    let a = get_any(a);
+                    let o = get_any(o);
+                    let v = get_any(v);
+                    let addr = self.builder.build_int_add(a, o, "lstr_addr").unwrap();
+                    write_ram(addr, v);
+                    self.builder
+                        .build_unconditional_branch(inst_bb[pc + 1])
+                        .unwrap();
+                },
+                ast::Instruction::SDiv(d, a, b) => gen!(2op d a b |a, b| {
+                    self.builder.build_int_signed_div(a, b, "sdiv").unwrap()
+                }),
+                ast::Instruction::SBrl(d, a, b) => gen!(2bc d a b |a, b| {
+                    self.builder.build_int_compare(IntPredicate::SLT, a, b, "sbrl_cmp").unwrap()
+                }),
+                ast::Instruction::SBrg(d, a, b) => gen!(2bc d a b |a, b| {
+                    self.builder.build_int_compare(IntPredicate::SGT, a, b, "sbrg_cmp").unwrap()
+                }),
+                ast::Instruction::SBle(d, a, b) => gen!(2bc d a b |a, b| {
+                    self.builder.build_int_compare(IntPredicate::SLE, a, b, "sble_cmp").unwrap()
+                }),
+                ast::Instruction::SBge(d, a, b) => gen!(2bc d a b |a, b| {
+                    self.builder.build_int_compare(IntPredicate::SGE, a, b, "sbge_cmp").unwrap()
+                }),
+                ast::Instruction::SSetG(d, a, b) => gen!(2set d a b |a, b| {
+                    self.builder.build_int_compare(IntPredicate::SGT, a, b, "ssetg_cmp").unwrap()
+                }),
+                ast::Instruction::SSetL(d, a, b) => gen!(2set d a b |a, b| {
+                    self.builder.build_int_compare(IntPredicate::SLT, a, b, "ssetl_cmp").unwrap()
+                }),
+                ast::Instruction::SSetGe(d, a, b) => gen!(2set d a b |a, b| {
+                    self.builder.build_int_compare(IntPredicate::SGE, a, b, "ssetge_cmp").unwrap()
+                }),
+                ast::Instruction::SSetLe(d, a, b) => gen!(2set d a b |a, b| {
+                    self.builder.build_int_compare(IntPredicate::SLE, a, b, "ssetle_cmp").unwrap()
+                }),
+                ast::Instruction::Abs(d, a) => gen!(1op d a |a: values::IntValue<'a>| {
+                    let abs = intrinsics::Intrinsic::find("llvm.abs")
+                        .unwrap()
+                        .get_declaration(&self.module, &[word_t.into()])
+                        .unwrap();
+
+                    self.builder
+                        .build_call(abs, &[a.into(), word_0.into()], "abs")
+                        .unwrap()
+                        .try_as_basic_value()
+                        .unwrap_left()
+                        .into_int_value()
+                }),
                 ast::Instruction::Out(p, v) => {
                     let p = get_any(p);
                     let v = get_any(v);
                     self.builder
-                        .build_call(port_out, &[p.into(), v.into()], "urcl_out")
+                        .build_call(port_out, &[p.into(), v.into()], "out")
                         .unwrap();
                     self.builder
                         .build_unconditional_branch(inst_bb[pc + 1])
                         .unwrap();
                 },
-                _ => {
+                ast::Instruction::In(r, p) => gen!(1op r p |p: values::IntValue<'a>| {
                     self.builder
-                        .build_unconditional_branch(inst_bb[pc + 1])
-                        .unwrap();
-                    println!("{i}");
-                },
+                        .build_call(port_in, &[p.into()], "in")
+                        .unwrap()
+                        .try_as_basic_value()
+                        .unwrap_left()
+                        .into_int_value()
+                }),
             }
         }
 

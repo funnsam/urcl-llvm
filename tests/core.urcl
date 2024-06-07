@@ -76,12 +76,12 @@ imm r1 1
     .bge_ok_1
     out case_result 0
 
-    bge .bge_ok_2 5 3
+    bge .bge_ok_2 246 240
     out case_result 2
 
     .bge_ok_2
     out case_result 0
-    bge .bge_fail 3 5
+    bge .bge_fail 240 246
     bge .bge_ok_3 r0 r0
 
     .bge_fail
