@@ -1,0 +1,20 @@
+--- urcl-os/urclos3.urcl	2024-06-08 05:48:31.002767291 +0000
++++ urcl-os/urclos3_del.urcl	2024-06-08 06:04:33.252767750 +0000
+@@ -1513,8 +1513,9 @@
+ RET
+ 
+ .Scal_Gets_Del
+-BRZ .Scal_Gets_DelNone R3
++BRE .Scal_Gets_DelNone R2 R3
+ DEC R3 R3
++INC R2 R2
+ OUT %TEXT 0x1b
+ OUT %TEXT '['
+ OUT %TEXT '1'
+@@ -1876,4 +1877,4 @@
+ CAL R6
+ INC R4 R4
+ STR .VirtualRegisters R0 //keep R0 as 0
+-JMP .Exec_Loop
+\ No newline at end of file
++JMP .Exec_Loop

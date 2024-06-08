@@ -52,10 +52,5 @@ urclos: urclos_rt.o
 	$(LD) urcl.o urclos_rt.o $(LD_FLAGS)
 	./a.out
 
-update_fs:
-	$(CC) urclos-rt.c -c -o urclos_rt.o $(CC_FLAGS)
-	$(LD) urcl.o urclos_rt.o $(LD_FLAGS)
-	./a.out
-
 clean:
 	- rm *.o

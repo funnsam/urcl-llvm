@@ -83,7 +83,7 @@ void urcl_out(urcl_t port, urcl_t data) {
             break;
         }
         case 27: {
-            printf("%x", data);
+            printf("%04x", data);
             break;
         }
         case 28: {
