@@ -2,6 +2,8 @@ use inkwell::*;
 use urcl_frontend::ast;
 
 pub use targets::FileType;
+pub use inkwell::OptimizationLevel;
+
 pub struct CodegenContext(context::Context);
 
 impl Default for CodegenContext {
@@ -31,9 +33,7 @@ impl<'a> Codegen<'a> {
         }
     }
 
-    pub fn generate_code(&mut self, triple: Option<&str>, ft: targets::FileType, path: &std::path::Path) {
-        let target = self.get_machine(triple);
-
+    pub fn generate_code(&mut self, target: &targets::TargetMachine, opt: OptimizationLevel) {
         let word_t = self.context.custom_width_int_type(self.program.bits as u32);
         let mach_t = self.context.ptr_sized_int_type(&target.get_target_data(), None);
         let void = self.context.void_type();
@@ -651,7 +651,10 @@ impl<'a> Codegen<'a> {
             )
             .unwrap();
 
-        self.write_obj(target, ft, path)
+        let pass = passes::PassBuilderOptions::create();
+        self.module
+            .run_passes(&Self::get_passes(opt as _), target, pass)
+            .unwrap();
     }
 
     pub fn dump(&self) {
@@ -670,7 +673,7 @@ impl<'a> Codegen<'a> {
             .write_bitcode_to_path(std::path::Path::new("urcl.opt.bc"));
     }
 
-    fn get_machine(&self, triple: Option<&str>) -> targets::TargetMachine {
+    pub fn get_machine(triple: Option<&str>, opt: OptimizationLevel) -> targets::TargetMachine {
         targets::Target::initialize_all(&targets::InitializationConfig::default());
 
         let triple = triple.map_or_else(
@@ -682,7 +685,6 @@ impl<'a> Codegen<'a> {
         let features = targets::TargetMachine::get_host_cpu_features();
         let reloc = targets::RelocMode::DynamicNoPic;
         let model = targets::CodeModel::Default;
-        let opt = OptimizationLevel::Aggressive;
 
         target
             .create_target_machine(
@@ -696,20 +698,32 @@ impl<'a> Codegen<'a> {
             .unwrap()
     }
 
-    pub fn write_obj(&self, tm: targets::TargetMachine, ft: targets::FileType, path: &std::path::Path) {
-        let pass = passes::PassBuilderOptions::create();
-        self.module
-            .run_passes(OPT_O3_PASSES, &tm, pass)
-            .unwrap();
-
+    pub fn write_obj(&self, tm: &targets::TargetMachine, ft: targets::FileType, path: &std::path::Path) {
         tm
             .write_to_file(&self.module, ft, path)
             .unwrap();
     }
-}
 
-// HACK:
-// if it doesn't work on your machine then copy ```
-// llvm-as-17 < /dev/null | opt-17 --print-pipeline-passes -O3 2> /dev/null
-// ```
-const OPT_O3_PASSES: &str = "annotation2metadata,forceattrs,inferattrs,coro-early,function<eager-inv>(lower-expect,simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;no-switch-range-to-icmp;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-sink-common-insts;speculate-blocks;simplify-cond-branch>,sroa<modify-cfg>,early-cse<>,callsite-splitting),openmp-opt,ipsccp,called-value-propagation,globalopt,function<eager-inv>(mem2reg,instcombine<max-iterations=1000;no-use-loop-info>,simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-sink-common-insts;speculate-blocks;simplify-cond-branch>),require<globals-aa>,function(invalidate<aa>),require<profile-summary>,cgscc(devirt<4>(inline<only-mandatory>,inline,function-attrs<skip-non-recursive>,argpromotion,openmp-opt-cgscc,function<eager-inv;no-rerun>(sroa<modify-cfg>,early-cse<memssa>,speculative-execution,jump-threading,correlated-propagation,simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-sink-common-insts;speculate-blocks;simplify-cond-branch>,instcombine<max-iterations=1000;no-use-loop-info>,aggressive-instcombine,constraint-elimination,libcalls-shrinkwrap,tailcallelim,simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-sink-common-insts;speculate-blocks;simplify-cond-branch>,reassociate,loop-mssa(loop-instsimplify,loop-simplifycfg,licm<no-allowspeculation>,loop-rotate<header-duplication;no-prepare-for-lto>,licm<allowspeculation>,simple-loop-unswitch<nontrivial;trivial>),simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-sink-common-insts;speculate-blocks;simplify-cond-branch>,instcombine<max-iterations=1000;no-use-loop-info>,loop(loop-idiom,indvars,loop-deletion,loop-unroll-full),sroa<modify-cfg>,vector-combine,mldst-motion<no-split-footer-bb>,gvn<>,sccp,bdce,instcombine<max-iterations=1000;no-use-loop-info>,jump-threading,correlated-propagation,adce,memcpyopt,dse,move-auto-init,loop-mssa(licm<allowspeculation>),coro-elide,simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;no-switch-to-lookup;keep-loops;hoist-common-insts;sink-common-insts;speculate-blocks;simplify-cond-branch>,instcombine<max-iterations=1000;no-use-loop-info>),function-attrs,function(require<should-not-run-function-passes>),coro-split)),deadargelim,coro-cleanup,globalopt,globaldce,elim-avail-extern,rpo-function-attrs,recompute-globalsaa,function<eager-inv>(float2int,lower-constant-intrinsics,chr,loop(loop-rotate<header-duplication;no-prepare-for-lto>,loop-deletion),loop-distribute,inject-tli-mappings,loop-vectorize<no-interleave-forced-only;no-vectorize-forced-only;>,loop-load-elim,instcombine<max-iterations=1000;no-use-loop-info>,simplifycfg<bonus-inst-threshold=1;forward-switch-cond;switch-range-to-icmp;switch-to-lookup;no-keep-loops;hoist-common-insts;sink-common-insts;speculate-blocks;simplify-cond-branch>,slp-vectorizer,vector-combine,instcombine<max-iterations=1000;no-use-loop-info>,loop-unroll<O3>,transform-warning,sroa<preserve-cfg>,instcombine<max-iterations=1000;no-use-loop-info>,loop-mssa(licm<allowspeculation>),alignment-from-assumptions,loop-sink,instsimplify,div-rem-pairs,tailcallelim,simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-sink-common-insts;speculate-blocks;simplify-cond-branch>),globaldce,constmerge,cg-profile,rel-lookup-table-converter,function(annotation-remarks),verify";
+    fn get_passes(lv: usize) -> String {
+        String::from_utf8(
+            std::process::Command::new("sh")
+                .arg("-c")
+                .arg(format!("llvm-as-17 < /dev/null | opt-17 --print-pipeline-passes -O{lv} 2> /dev/null"))
+                .output()
+                .unwrap_or_else(|_| Self::get_passes_alt(lv))
+                .stdout
+        )
+            .unwrap()
+            .replace(",BitcodeWriterPass", "")
+            .trim_end()
+            .to_string()
+    }
+
+    fn get_passes_alt(lv: usize) -> std::process::Output {
+        std::process::Command::new("sh")
+            .arg("-c")
+            .arg(format!("llvm-as < /dev/null | opt --print-pipeline-passes -O{lv} 2> /dev/null"))
+            .output()
+            .expect("failed to invoke LLVM")
+    }
+}

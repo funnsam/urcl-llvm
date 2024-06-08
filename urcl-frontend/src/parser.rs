@@ -12,8 +12,8 @@ pub struct Parser<'a> {
 
     bits: Option<usize>,
     registers: Option<usize>,
-    stack_size: Option<usize>,
-    heap_size: Option<usize>,
+    min_stack: Option<usize>,
+    min_heap: Option<usize>,
 
     labels: HashMap<&'a str, u128>,
     defines: HashMap<&'a str, (RawOperand<'a>, Span)>,
@@ -58,8 +58,8 @@ impl<'a> Parser<'a> {
 
             bits: None,
             registers: None,
-            stack_size: None,
-            heap_size: None,
+            min_stack: None,
+            min_heap: None,
 
             labels: HashMap::new(),
             defines: HashMap::new(),
@@ -244,7 +244,11 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn parse_program(mut self) -> Result<ast::Program, Vec<(ParseError, Span)>> {
+    pub fn parse_program(
+        mut self,
+        max_heap: usize,
+        max_stack: usize,
+    ) -> Result<ast::Program, Vec<(ParseError, Span)>> {
         let mut pending_labels: Vec<&str> = Vec::new();
 
         while let Some(t) = self.next_token() {
@@ -300,12 +304,12 @@ impl<'a> Parser<'a> {
                 Ok(lexer::Token::Name(n) | lexer::Token::Macro(n))
                     if n.eq_ignore_ascii_case("minstack") =>
                 {
-                    if self.stack_size.is_some() {
+                    if self.min_stack.is_some() {
                         self.errors
                             .push((ParseError::ItemRedefined, self.total_span()));
                         self.wait_nl();
                     } else {
-                        self.stack_size = Some(
+                        self.min_stack = Some(
                             self.next_token()
                                 .and_then(|t| t.ok())
                                 .and_then(|t| t.try_as_int())
@@ -320,12 +324,12 @@ impl<'a> Parser<'a> {
                 Ok(lexer::Token::Name(n) | lexer::Token::Macro(n))
                     if n.eq_ignore_ascii_case("minheap") =>
                 {
-                    if self.heap_size.is_some() {
+                    if self.min_heap.is_some() {
                         self.errors
                             .push((ParseError::ItemRedefined, self.total_span()));
                         self.wait_nl();
                     } else {
-                        self.heap_size = Some(
+                        self.min_heap = Some(
                             self.next_token()
                                 .and_then(|t| t.ok())
                                 .and_then(|t| t.try_as_int())
@@ -396,8 +400,10 @@ impl<'a> Parser<'a> {
 
         self.bits = Some(self.bits.unwrap_or(8));
         self.registers = Some(self.registers.unwrap_or(8));
-        self.stack_size = Some(self.stack_size.unwrap_or(8));
-        self.heap_size = Some(self.heap_size.unwrap_or(16));
+        self.min_stack = Some(self.min_stack.unwrap_or(8));
+        self.min_heap = Some(self.min_heap.unwrap_or(16));
+        let stack_size = self.min_stack.unwrap().max(max_stack);
+        let heap_size = self.min_stack.unwrap().max(max_heap);
 
         let instructions = core::mem::take(&mut self.instructions);
         let dw = core::mem::take(&mut self.dw);
@@ -406,21 +412,24 @@ impl<'a> Parser<'a> {
         let p = ast::Program {
             bits: self.bits.unwrap(),
             registers: self.registers.unwrap(),
-            stack_size: self.stack_size.unwrap(),
-            heap_size: self.heap_size.unwrap(),
+            min_stack: self.min_stack.unwrap(),
+            min_heap: self.min_heap.unwrap(),
+
+            stack_size,
+            heap_size,
 
             instructions: instructions
                 .iter()
                 .map(|i| {
                     ast::Instruction::construct(
                         i.0,
-                        i.1.iter().map(|i| self.finalize(i, dw_len)).collect(),
+                        i.1.iter().map(|i| self.finalize(i, dw_len, heap_size)).collect(),
                     )
                 })
                 .collect(),
             dw: dw
                 .iter()
-                .map(|i| self.finalize(i, dw_len).try_as_immediate().unwrap().0)
+                .map(|i| self.finalize(i, dw_len, heap_size).try_as_immediate().unwrap().0)
                 .collect(),
         };
 
@@ -431,7 +440,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn finalize(&mut self, op: &(RawOperand, Span), dw_len: u128) -> ast::Any {
+    fn finalize(&mut self, op: &(RawOperand, Span), dw_len: u128, heap_size: usize) -> ast::Any {
         match &op.0 {
             RawOperand::Register(r) => ast::Any::Register(r.clone()),
             RawOperand::Immediate(i) => ast::Any::Immediate(i.clone()),
@@ -443,10 +452,13 @@ impl<'a> Parser<'a> {
                 ast::Any::Immediate(ast::Immediate(self.registers.unwrap() as _))
             },
             RawOperand::MacroImm(MacroImm::MinStack) => {
-                ast::Any::Immediate(ast::Immediate(self.stack_size.unwrap() as _))
+                ast::Any::Immediate(ast::Immediate(self.min_stack.unwrap() as _))
             },
-            RawOperand::MacroImm(MacroImm::MinHeap | MacroImm::Heap) => {
-                ast::Any::Immediate(ast::Immediate(self.heap_size.unwrap() as _))
+            RawOperand::MacroImm(MacroImm::MinHeap) => {
+                ast::Any::Immediate(ast::Immediate(self.min_heap.unwrap() as _))
+            },
+            RawOperand::MacroImm(MacroImm::Heap) => {
+                ast::Any::Immediate(ast::Immediate(heap_size as _))
             },
             RawOperand::MacroImm(MacroImm::Max) => {
                 ast::Any::Immediate(ast::Immediate((1 << self.bits.unwrap() as u128) - 1))
