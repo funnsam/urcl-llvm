@@ -6,3 +6,4 @@
 *.asm
 *.s
 a.out
+/urclos_fs.h

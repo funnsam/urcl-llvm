@@ -1,0 +1,3 @@
+[submodule "urcl-os"]
+	path = urcl-os
+	url = git@github.com:verlio-h/urcl-os

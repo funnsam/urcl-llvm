@@ -91,6 +91,8 @@ impl<'a> Codegen<'a> {
         let inst_bb = (0..=self.program.instructions.len())
             .map(|i| self.context.append_basic_block(main, &format!("inst_{i}")))
             .collect::<Vec<basic_block::BasicBlock>>();
+        let big_switch_bb = self.context.append_basic_block(main, "big_switch_table");
+        let big_switch_to = self.builder.build_alloca(word_t, "big_switch_to").unwrap();
 
         let ret = || {
             let inst_cnt_v = self
@@ -104,7 +106,9 @@ impl<'a> Codegen<'a> {
 
         for (pc, i) in self.program.instructions.iter().enumerate() {
             let gen_big_switch_table = |v| {
-                self.builder
+                self.builder.build_store(big_switch_to, v).unwrap();
+                self.builder.build_unconditional_branch(big_switch_bb).unwrap();
+                /* self.builder
                     .build_switch(
                         v,
                         *inst_bb.last().unwrap(),
@@ -114,7 +118,7 @@ impl<'a> Codegen<'a> {
                             .map(|(i, b)| (word_t.const_int(i as _, false), *b))
                             .collect::<Vec<_>>(),
                     )
-                    .unwrap();
+                    .unwrap(); */
             };
 
             let get_reg = |r: &_| match r {
@@ -630,6 +634,20 @@ impl<'a> Codegen<'a> {
 
         self.builder.position_at_end(*inst_bb.last().unwrap());
         ret();
+
+        self.builder.position_at_end(big_switch_bb);
+        let v = self.builder.build_load(word_t, big_switch_to, "get_addr").unwrap();
+        self.builder
+            .build_switch(
+                v.into_int_value(),
+                *inst_bb.last().unwrap(),
+                &inst_bb
+                .iter()
+                .enumerate()
+                .map(|(i, b)| (word_t.const_int(i as _, false), *b))
+                .collect::<Vec<_>>(),
+            )
+            .unwrap();
     }
 
     pub fn dump(&self) {

@@ -78,6 +78,6 @@ int main() {
 
     double time = (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec) * 1e-9;
 
-    printf("\n\x1b[32mI:\x1b[0m ran %'lu instructions in %'.1fs (%'.0f Hz)\n", inst, time, ((double) inst) / time);
+    printf("\n\x1b[1;32mI:\x1b[0m ran %'lu instructions in %'.1fs (%'.0f Hz)\n", inst, time, ((double) inst) / time);
     return 0;
 }
