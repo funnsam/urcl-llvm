@@ -666,10 +666,13 @@ impl<'a> Codegen<'a> {
             .write_bitcode_to_path(std::path::Path::new("urcl.opt.bc"));
     }
 
-    pub fn write_obj(&self, ft: targets::FileType, path: &std::path::Path) {
+    pub fn write_obj(&self, triple: Option<&str>, ft: targets::FileType, path: &std::path::Path) {
         targets::Target::initialize_all(&targets::InitializationConfig::default());
 
-        let triple = targets::TargetMachine::get_default_triple();
+        let triple = triple.map_or_else(
+            || targets::TargetMachine::get_default_triple(),
+            |t| targets::TargetTriple::create(t),
+        );
         let target = targets::Target::from_triple(&triple).unwrap();
         let cpu = targets::TargetMachine::get_host_cpu_name();
         let features = targets::TargetMachine::get_host_cpu_features();
