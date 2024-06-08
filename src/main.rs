@@ -18,9 +18,7 @@ fn main() {
 
     let ctx = urcl_llvm_backend::CodegenContext::new();
     let mut codegen = urcl_llvm_backend::Codegen::new(&ctx, &program);
-    codegen.generate_code();
-    codegen.dump();
-    codegen.write_obj(
+    codegen.generate_code(
         args.triple.as_deref(),
         urcl_llvm_backend::FileType::Object,
         std::path::Path::new("urcl.o"),

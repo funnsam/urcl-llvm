@@ -31,9 +31,11 @@ impl<'a> Codegen<'a> {
         }
     }
 
-    pub fn generate_code(&mut self) {
+    pub fn generate_code(&mut self, triple: Option<&str>, ft: targets::FileType, path: &std::path::Path) {
+        let target = self.get_machine(triple);
+
         let word_t = self.context.custom_width_int_type(self.program.bits as u32);
-        let mach_t = self.context.custom_width_int_type(64);
+        let mach_t = self.context.ptr_sized_int_type(&target.get_target_data(), None);
         let void = self.context.void_type();
 
         let word_1 = word_t.const_int(1, false);
@@ -648,6 +650,8 @@ impl<'a> Codegen<'a> {
                 .collect::<Vec<_>>(),
             )
             .unwrap();
+
+        self.write_obj(target, ft, path)
     }
 
     pub fn dump(&self) {
@@ -666,7 +670,7 @@ impl<'a> Codegen<'a> {
             .write_bitcode_to_path(std::path::Path::new("urcl.opt.bc"));
     }
 
-    pub fn write_obj(&self, triple: Option<&str>, ft: targets::FileType, path: &std::path::Path) {
+    fn get_machine(&self, triple: Option<&str>) -> targets::TargetMachine {
         targets::Target::initialize_all(&targets::InitializationConfig::default());
 
         let triple = triple.map_or_else(
@@ -680,7 +684,7 @@ impl<'a> Codegen<'a> {
         let model = targets::CodeModel::Default;
         let opt = OptimizationLevel::Aggressive;
 
-        let target_machine = target
+        target
             .create_target_machine(
                 &triple,
                 cpu.to_str().unwrap(),
@@ -689,14 +693,16 @@ impl<'a> Codegen<'a> {
                 reloc,
                 model,
             )
-            .unwrap();
+            .unwrap()
+    }
 
+    pub fn write_obj(&self, tm: targets::TargetMachine, ft: targets::FileType, path: &std::path::Path) {
         let pass = passes::PassBuilderOptions::create();
         self.module
-            .run_passes(OPT_O3_PASSES, &target_machine, pass)
+            .run_passes(OPT_O3_PASSES, &tm, pass)
             .unwrap();
 
-        target_machine
+        tm
             .write_to_file(&self.module, ft, path)
             .unwrap();
     }
