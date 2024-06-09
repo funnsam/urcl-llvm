@@ -729,7 +729,8 @@ impl<'a> Codegen<'a> {
                 .stdout
         )
             .unwrap()
-            .replace(",BitcodeWriterPass", "")
+            .replace("BitcodeWriterPass", "")
+            .replace(",,", "")
             .trim_end()
             .to_string()
     }
