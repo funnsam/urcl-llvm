@@ -403,7 +403,7 @@ impl<'a> Parser<'a> {
         self.min_stack = Some(self.min_stack.unwrap_or(8));
         self.min_heap = Some(self.min_heap.unwrap_or(16));
         let stack_size = self.min_stack.unwrap().max(max_stack);
-        let heap_size = self.min_stack.unwrap().max(max_heap);
+        let heap_size = self.min_heap.unwrap().max(max_heap);
 
         let instructions = core::mem::take(&mut self.instructions);
         let dw = core::mem::take(&mut self.dw);

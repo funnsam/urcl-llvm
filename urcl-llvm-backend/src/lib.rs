@@ -33,7 +33,7 @@ impl<'a> Codegen<'a> {
         }
     }
 
-    pub fn generate_code(&mut self, target: &targets::TargetMachine, opt: OptimizationLevel) {
+    pub fn generate_code(&mut self, target: &targets::TargetMachine, use_global: bool) {
         let word_t = self.context.custom_width_int_type(self.program.bits as u32);
         let mach_t = self.context.ptr_sized_int_type(&target.get_target_data(), None);
         let void = self.context.void_type();
@@ -68,7 +68,16 @@ impl<'a> Codegen<'a> {
 
         let ram_size = self.program.stack_size + self.program.heap_size + self.program.dw.len();
         let ram_t = word_t.array_type(ram_size as _);
-        let ram = self.builder.build_alloca(ram_t, "ram").unwrap();
+
+        let ram = if use_global {
+            let g = self.module.add_global(ram_t, None, "ram");
+            g.set_externally_initialized(false);
+            g.set_initializer(&ram_t.const_zero());
+            g.set_linkage(module::Linkage::Internal);
+            g.as_pointer_value()
+        } else {
+            self.builder.build_alloca(ram_t, "ram").unwrap()
+        };
         let dw = word_t.const_array(
             self.program
                 .dw
@@ -161,23 +170,23 @@ impl<'a> Codegen<'a> {
                 ast::Any::Immediate(i) => word_t.const_int(i.0 as u64, false),
             };
 
-            let read_ram = |a| unsafe {
-                let p = self
+            let ram_gep = |a| unsafe {
+                let a = self.builder.build_int_z_extend(a, mach_t, "ram_gep_zext").unwrap();
+                self
                     .builder
                     .build_in_bounds_gep(word_t, ram, &[a], "ram_gep")
-                    .unwrap();
+                    .unwrap()
+            };
+
+            let read_ram = |a| {
                 self.builder
-                    .build_load(word_t, p, "read_ram")
+                    .build_load(word_t, ram_gep(a), "read_ram")
                     .unwrap()
                     .into_int_value()
             };
 
-            let write_ram = |a, v: values::IntValue| unsafe {
-                let p = self
-                    .builder
-                    .build_in_bounds_gep(word_t, ram, &[a], "ram_gep")
-                    .unwrap();
-                self.builder.build_store(p, v).unwrap();
+            let write_ram = |a, v: values::IntValue| {
+                self.builder.build_store(ram_gep(a), v).unwrap();
             };
 
             let cond_br = |c, d: &_| match d {
@@ -650,7 +659,13 @@ impl<'a> Codegen<'a> {
                 .collect::<Vec<_>>(),
             )
             .unwrap();
+    }
 
+    pub fn optimize(
+        &self,
+        target: &targets::TargetMachine,
+        opt: OptimizationLevel,
+    ) {
         let pass = passes::PassBuilderOptions::create();
         self.module
             .run_passes(&Self::get_passes(opt as _), target, pass)

@@ -14,6 +14,9 @@ struct Args {
     max_heap: usize,
     #[arg(long, default_value_t = 0)]
     max_stack: usize,
+
+    #[arg(long)]
+    use_global: bool,
 }
 
 fn main() {
@@ -32,8 +35,11 @@ fn main() {
     let target = urcl_llvm_backend::Codegen::get_machine(args.triple.as_deref(), opt.clone());
     codegen.generate_code(
         &target,
-        opt.clone(),
+        args.use_global,
     );
+    codegen.dump();
+    codegen.optimize(&target, opt.clone());
+    codegen.dump_opt();
     codegen.write_obj(
         &target,
         urcl_llvm_backend::FileType::Object,
