@@ -720,26 +720,35 @@ impl<'a> Codegen<'a> {
     }
 
     fn get_passes(lv: usize) -> String {
-        String::from_utf8(
-            std::process::Command::new("sh")
-                .arg("-c")
-                .arg(format!("llvm-as-17 < /dev/null | opt-17 --print-pipeline-passes -O{lv} 2> /dev/null"))
-                .output()
-                .unwrap_or_else(|_| Self::get_passes_alt(lv))
-                .stdout
-        )
+        let mut suffix = std::process::Command::new("opt");
+        let suffix = suffix
+            .arg("--version")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .map_or("-17", |_| "");
+
+        let mut proc = std::process::Command::new("sh");
+        let proc = proc
+            .arg("-c")
+            .arg(format!("llvm-as{suffix} < /dev/null | opt{suffix} --print-pipeline-passes -O{lv} 2> /dev/null"));
+
+        let out = proc.output().unwrap();
+        // if !out.status.success() {
+        //     panic!("failed trying to get optimization passes (returned {}) {out:?}", out.status);
+        // }
+
+        let mut s = String::from_utf8(out.stdout)
             .unwrap()
             .replace("BitcodeWriterPass", "")
             .replace(",,", "")
             .trim_end()
-            .to_string()
-    }
+            .to_string();
 
-    fn get_passes_alt(lv: usize) -> std::process::Output {
-        std::process::Command::new("sh")
-            .arg("-c")
-            .arg(format!("llvm-as < /dev/null | opt --print-pipeline-passes -O{lv} 2> /dev/null"))
-            .output()
-            .expect("failed to invoke LLVM")
+        if s.chars().last().map_or(false, |c| c == ',') {
+            s.pop();
+        }
+
+        s
     }
 }
