@@ -645,7 +645,7 @@ impl<'a> Codegen<'a> {
                     let a = self.builder.build_int_z_extend(a, ext_t, "umlt_a_zext").unwrap();
                     let b = self.builder.build_int_z_extend(b, ext_t, "umlt_b_zext").unwrap();
                     let r = self.builder.build_int_mul(a, b, "umlt_mlt").unwrap();
-                    let s = self.builder.build_right_shift(r, mach_t.const_int(self.program.bits as _, false), false, "uml_rsh").unwrap();
+                    let s = self.builder.build_right_shift(r, ext_t.const_int(self.program.bits as _, false), false, "uml_rsh").unwrap();
                     self.builder.build_int_truncate(s, word_t, "umlt_trunc").unwrap()
                 }),
                 ast::Instruction::SUmlt(d, a, b) => gen!(2op d a b |a, b| {
@@ -653,7 +653,7 @@ impl<'a> Codegen<'a> {
                     let a = self.builder.build_int_s_extend(a, ext_t, "sumlt_a_zext").unwrap();
                     let b = self.builder.build_int_s_extend(b, ext_t, "sumlt_b_zext").unwrap();
                     let r = self.builder.build_int_mul(a, b, "sumlt_mlt").unwrap();
-                    let s = self.builder.build_right_shift(r, mach_t.const_int(self.program.bits as _, false), false, "suml_rsh").unwrap();
+                    let s = self.builder.build_right_shift(r, ext_t.const_int(self.program.bits as _, false), false, "suml_rsh").unwrap();
                     self.builder.build_int_truncate(s, word_t, "sumlt_trunc").unwrap()
                 }),
             }
