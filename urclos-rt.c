@@ -1,10 +1,10 @@
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdint.h>
+#include <errno.h>
 #include <locale.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <time.h>
-
-#include "urclos_fs.h"
 
 #ifdef _WIN32
     #include <conio.h>
@@ -36,6 +36,7 @@ union WordAndFloat {
     float f;
 };
 
+urcl_t* fs;
 urcl_t address = 0;
 
 urcl_t urcl_in(urcl_t port) {
@@ -47,7 +48,7 @@ urcl_t urcl_in(urcl_t port) {
             return address;
         }
         case 33: {
-            return fs[address];
+            return fs[(int) address];
         }
         case 40: {
             return (urcl_t) rand();
@@ -96,7 +97,7 @@ void urcl_out(urcl_t port, urcl_t data) {
             break;
         }
         case 33: {
-            fs[address] = data;
+            fs[(int) address] = data;
             break;
         }
         case 40: {
@@ -110,11 +111,57 @@ void urcl_out(urcl_t port, urcl_t data) {
     }
 }
 
-int main() {
+bool is_little_endian() {
+    volatile uint32_t i = 0x01234567;
+    return (*((uint8_t*) (&i))) == 0x67;
+}
+
+void swap_bytes(uint16_t* buf, int size) {
+    for (int i = 0; i < size; i++) {
+        buf[i] = ((buf[i] & 0xff) << 8) | ((buf[i] >> 8) & 0xff);
+    }
+}
+
+int main(int argc, char* argv[]) {
+    if (argc < 2) {
+        printf("Usage: %s <fs>\n", argv[0]);
+        return 1;
+    }
+
+    FILE* fs_file = fopen(argv[1], "r+b");
+    if (fs_file == NULL) {
+        perror("Loading filesystem failed");
+        return 2;
+    }
+
+    fseek(fs_file, 0, SEEK_END);
+    int size = ftell(fs_file);
+    rewind(fs_file);
+    fs = (urcl_t*) malloc(size);
+    if (fread(fs, 1, size, fs_file) != (size_t) size) {
+        perror("Loading filesystem failed");
+        return 3;
+    }
+
+    if (is_little_endian()) {
+        swap_bytes(fs, size / 2);
+    }
+
     INIT_TERM;
 
-    (void)urcl_main();
+    (void) urcl_main();
 
     printf("\n\x1b[1;32mI:\x1b[0m URCL-OS halted\n");
+
+    if (is_little_endian()) {
+        swap_bytes(fs, size / 2);
+    }
+
+    rewind(fs_file);
+    fwrite(fs, size, 1, fs_file);
+    fflush(fs_file);
+    fclose(fs_file);
+
+    free(fs);
     return 0;
 }

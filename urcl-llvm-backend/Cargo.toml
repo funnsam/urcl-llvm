@@ -5,4 +5,4 @@ edition = "2021"
 
 [dependencies]
 inkwell = { version = "0.4.0", features = ["llvm17-0-prefer-dynamic"] }
-urcl-frontend = { path = "../urcl-frontend" }
+urcl-ast = { path = "../urcl-ast" }

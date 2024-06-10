@@ -41,16 +41,13 @@ mandelbrot: runtime.o
 	$(LD) urcl.o runtime.o $(LD_FLAGS)
 	./a.out
 
-urclos_fs.h:
-	python3 gen_urclos_fs.py urcl-os/fs.bin
-
-urclos_rt.o: urclos_fs.h
+urclos_rt.o:
 	$(CC) urclos-rt.c -c -o urclos_rt.o $(CC_FLAGS)
 
 urclos: urclos_rt.o
 	cargo r -r -- urcl-os/urclos3.urcl -O3 --max-heap 65382 --use-global
 	$(LD) urcl.o urclos_rt.o $(LD_FLAGS)
-	./a.out
+	./a.out urcl-os/fs.bin
 
 clean:
 	- rm *.o

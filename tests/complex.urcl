@@ -7,7 +7,7 @@ bits 8
 @define total_tests %uint
 imm r1 1
 
-out total_tests 11
+out total_tests 13
 
 // mlt
     mlt r1 0x69 0x42
@@ -113,6 +113,22 @@ imm r1 1
 // abs
     abs r1 0x96
     sub r1 r1 0x6a
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1
+
+// umlt
+    umlt r1 0x69 0x42
+    sub r1 r1 0x1b
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1
+
+// sumlt
+    sumlt r1 0x97 0x42
+    sub r1 r1 0xe4
     out case_result r1
 out test_cases 1
 out test_end test_end_data

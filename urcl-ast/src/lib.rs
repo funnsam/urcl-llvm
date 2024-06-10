@@ -27,7 +27,7 @@ macro_rules! instr {
         }
 
         impl Instruction {
-            pub(crate) fn properties(i: &str) -> Option<InstProperties> {
+            pub fn properties(i: &str) -> Option<InstProperties> {
                 $(if i.eq_ignore_ascii_case(stringify!($name)) {
                     return Some(InstProperties {
                         operands: &[$(instr!(opk $arg)),*],
@@ -37,7 +37,7 @@ macro_rules! instr {
                 None
             }
 
-            pub(crate) fn construct(i: &str, mut o: Vec<Any>) -> Self {
+            pub fn construct(i: &str, mut o: Vec<Any>) -> Self {
                 use Instruction::*;
                 o.reverse();
 
@@ -139,6 +139,8 @@ instr! {
     Abs [r a],
     Out [a a],
     In [r a],
+    Umlt [r a a],
+    SUmlt [r a a],
 }
 
 #[derive(Clone)]
@@ -181,7 +183,7 @@ impl fmt::Debug for Any {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct InstProperties {
+pub struct InstProperties {
     pub operands: &'static [OperandKind],
 }
 

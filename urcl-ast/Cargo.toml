@@ -1,8 +1,7 @@
 [package]
-name = "urcl-frontend"
+name = "urcl-ast"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 strum = { version = "0.26.2", features = ["derive"] }
-urcl-ast = { path = "../urcl-ast" }

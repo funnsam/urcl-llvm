@@ -17,6 +17,11 @@ struct Args {
 
     #[arg(long)]
     use_global: bool,
+
+    #[arg(short, default_value = "urcl.o")]
+    output_file: String,
+    #[arg(long)]
+    emit_assembly: bool,
 }
 
 fn main() {
@@ -42,8 +47,12 @@ fn main() {
     codegen.dump_opt();
     codegen.write_obj(
         &target,
-        urcl_llvm_backend::FileType::Object,
-        std::path::Path::new("urcl.o"),
+        if args.emit_assembly {
+            urcl_llvm_backend::FileType::Assembly
+        } else {
+            urcl_llvm_backend::FileType::Object
+        },
+        std::path::Path::new(&args.output_file),
     );
 
     // println!("{program}");
