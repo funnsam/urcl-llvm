@@ -141,6 +141,16 @@ instr! {
     In [r a],
     Umlt [r a a],
     SUmlt [r a a],
+
+    ItoF [r a],
+    FtoI [r a],
+    FRtoI [r a],
+    FAdd [r a a],
+    FSub [r a a],
+    FMlt [r a a],
+    FDiv [r a a],
+    FSqrt [r a],
+    FAbs [r a],
 }
 
 #[derive(Clone)]

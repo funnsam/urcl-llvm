@@ -1,0 +1,25 @@
+bits 32
+
+fadd r1 0.1 0.2
+out %float r1
+out %text '\n'
+
+fsub r1 0.1 0.2
+out %float r1
+out %text '\n'
+
+fmlt r1 0.1 0.2
+out %float r1
+out %text '\n'
+
+fdiv r1 0.1 0.2
+out %float r1
+out %text '\n'
+
+fsqrt r1 2.0
+out %float r1
+out %text '\n'
+
+fabs r1 -0.1
+out %float r1
+out %text '\n'

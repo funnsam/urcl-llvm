@@ -14,6 +14,11 @@ impl CodegenContext {
     pub fn new() -> Self { Self(context::Context::create()) }
 }
 
+pub struct CodegenOptions {
+    pub use_global: bool,
+    pub float_type: usize,
+}
+
 pub struct Codegen<'a> {
     context: &'a context::Context,
     builder: builder::Builder<'a>,
@@ -33,9 +38,16 @@ impl<'a> Codegen<'a> {
         }
     }
 
-    pub fn generate_code(&mut self, target: &targets::TargetMachine, use_global: bool) {
+    pub fn generate_code(&mut self, target: &targets::TargetMachine, options: &CodegenOptions) {
         let word_t = self.context.custom_width_int_type(self.program.bits as u32);
         let mach_t = self.context.ptr_sized_int_type(&target.get_target_data(), None);
+        let float_t = match options.float_type {
+            16 => self.context.f16_type(),
+            32 => self.context.f32_type(),
+            64 => self.context.f64_type(),
+            128 => self.context.f128_type(),
+            _ => panic!("invalid float bit width"),
+        };
         let void = self.context.void_type();
 
         let word_1 = word_t.const_int(1, false);
@@ -69,7 +81,7 @@ impl<'a> Codegen<'a> {
         let ram_size = self.program.stack_size + self.program.heap_size + self.program.dw.len();
         let ram_t = word_t.array_type(ram_size as _);
 
-        let ram = if use_global {
+        let ram = if options.use_global {
             let g = self.module.add_global(ram_t, None, "ram");
             g.set_externally_initialized(false);
             g.set_initializer(&ram_t.const_zero());
@@ -171,7 +183,12 @@ impl<'a> Codegen<'a> {
             };
 
             let ram_gep = |a| unsafe {
-                let a = self.builder.build_int_z_extend(a, mach_t, "ram_gep_zext").unwrap();
+                let a = if mach_t.get_bit_width() > word_t.get_bit_width() {
+                    self.builder.build_int_z_extend(a, mach_t, "ram_gep_zext").unwrap()
+                } else {
+                    a
+                };
+
                 self
                     .builder
                     .build_in_bounds_gep(word_t, ram, &[a], "ram_gep")
@@ -257,6 +274,36 @@ impl<'a> Codegen<'a> {
                 read_ram(sp_old)
             };
 
+            let bit_itof = |i: values::IntValue<'a>| {
+                let float_it = self.context.custom_width_int_type(options.float_type as _);
+                let i = if self.program.bits > options.float_type {
+                    self.builder.build_int_truncate(i, float_it, "bitw_itof_trunc").unwrap()
+                } else if self.program.bits < options.float_type {
+                    // ur probably fucked up
+                    self.builder.build_int_z_extend(i, float_it, "bitw_itof_zext").unwrap()
+                } else {
+                    i
+                };
+
+                self.builder.build_bitcast(i, float_t, "bitw_itof").unwrap().into_float_value()
+            };
+
+            let bit_ftoi = |f: values::FloatValue<'a>| {
+                let float_it = self.context.custom_width_int_type(options.float_type as _);
+                let i = self.builder
+                    .build_bitcast(f, float_it, "bitw_ftoi")
+                    .unwrap()
+                    .into_int_value();
+
+                if self.program.bits > options.float_type {
+                    self.builder.build_int_z_extend(i, word_t, "bitw_ftoi_zext").unwrap()
+                } else if self.program.bits < options.float_type {
+                    self.builder.build_int_truncate(i, word_t, "bitw_ftoi_trunc").unwrap()
+                } else {
+                    i
+                }
+            };
+
             macro_rules! gen {
                 (2op $d: tt $a: tt $b: tt $gen: expr) => {{
                     let a = get_any($a);
@@ -298,6 +345,30 @@ impl<'a> Codegen<'a> {
                     let b = get_any($b);
                     let c = $gen(a, b);
                     let c = self.builder.build_int_s_extend(c, word_t, "set_sext").unwrap();
+                    if set_reg($d, c) {
+                        self.builder
+                            .build_unconditional_branch(inst_bb[pc + 1])
+                            .unwrap();
+                    }
+                }};
+                (2fop $d: tt $a: tt $b: tt $gen: expr) => {{
+                    let a = get_any($a);
+                    let a = bit_itof(a);
+                    let b = get_any($b);
+                    let b = bit_itof(b);
+                    let c = $gen(a, b);
+                    let c = bit_ftoi(c);
+                    if set_reg($d, c) {
+                        self.builder
+                            .build_unconditional_branch(inst_bb[pc + 1])
+                            .unwrap();
+                    }
+                }};
+                (1fop $d: tt $a: tt $gen: expr) => {{
+                    let a = get_any($a);
+                    let a = bit_itof(a);
+                    let c = $gen(a);
+                    let c = bit_ftoi(c);
                     if set_reg($d, c) {
                         self.builder
                             .build_unconditional_branch(inst_bb[pc + 1])
@@ -650,11 +721,67 @@ impl<'a> Codegen<'a> {
                 }),
                 ast::Instruction::SUmlt(d, a, b) => gen!(2op d a b |a, b| {
                     let ext_t = self.context.custom_width_int_type(self.program.bits as u32 * 2);
-                    let a = self.builder.build_int_s_extend(a, ext_t, "sumlt_a_zext").unwrap();
-                    let b = self.builder.build_int_s_extend(b, ext_t, "sumlt_b_zext").unwrap();
+                    let a = self.builder.build_int_s_extend(a, ext_t, "sumlt_a_sext").unwrap();
+                    let b = self.builder.build_int_s_extend(b, ext_t, "sumlt_b_sext").unwrap();
                     let r = self.builder.build_int_mul(a, b, "sumlt_mlt").unwrap();
                     let s = self.builder.build_right_shift(r, ext_t.const_int(self.program.bits as _, false), false, "suml_rsh").unwrap();
                     self.builder.build_int_truncate(s, word_t, "sumlt_trunc").unwrap()
+                }),
+                ast::Instruction::ItoF(d, a) => gen!(1op d a |a| {
+                    let f = self.builder.build_signed_int_to_float(a, float_t, "itof").unwrap();
+                    bit_ftoi(f)
+                }),
+                ast::Instruction::FtoI(d, a) => gen!(1op d a |a| {
+                    let f = bit_itof(a);
+                    self.builder.build_float_to_signed_int(f, word_t, "ftoi").unwrap()
+                }),
+                ast::Instruction::FRtoI(d, a) => gen!(1op d a |a| {
+                    let f = bit_itof(a);
+                    let round = intrinsics::Intrinsic::find("llvm.round")
+                        .unwrap()
+                        .get_declaration(&self.module, &[float_t.into()])
+                        .unwrap();
+                    let r = self.builder.build_call(round, &[f.into()], "frtoi_round")
+                        .unwrap()
+                        .try_as_basic_value()
+                        .unwrap_left()
+                        .into_float_value();
+
+                    self.builder.build_float_to_signed_int(r, word_t, "frtoi").unwrap()
+                }),
+                ast::Instruction::FAdd(d, a, b) => gen!(2fop d a b |a, b| {
+                    self.builder.build_float_add(a, b, "fadd").unwrap()
+                }),
+                ast::Instruction::FSub(d, a, b) => gen!(2fop d a b |a, b| {
+                    self.builder.build_float_sub(a, b, "fsub").unwrap()
+                }),
+                ast::Instruction::FMlt(d, a, b) => gen!(2fop d a b |a, b| {
+                    self.builder.build_float_mul(a, b, "fmlt").unwrap()
+                }),
+                ast::Instruction::FDiv(d, a, b) => gen!(2fop d a b |a, b| {
+                    self.builder.build_float_div(a, b, "fdiv").unwrap()
+                }),
+                ast::Instruction::FSqrt(d, a) => gen!(1fop d a |a: values::FloatValue<'a>| {
+                    let round = intrinsics::Intrinsic::find("llvm.sqrt")
+                        .unwrap()
+                        .get_declaration(&self.module, &[float_t.into()])
+                        .unwrap();
+                    self.builder.build_call(round, &[a.into()], "fsqrt")
+                        .unwrap()
+                        .try_as_basic_value()
+                        .unwrap_left()
+                        .into_float_value()
+                }),
+                ast::Instruction::FAbs(d, a) => gen!(1fop d a |a: values::FloatValue<'a>| {
+                    let round = intrinsics::Intrinsic::find("llvm.fabs")
+                        .unwrap()
+                        .get_declaration(&self.module, &[float_t.into()])
+                        .unwrap();
+                    self.builder.build_call(round, &[a.into()], "fabs")
+                        .unwrap()
+                        .try_as_basic_value()
+                        .unwrap_left()
+                        .into_float_value()
                 }),
             }
         }

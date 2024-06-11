@@ -27,7 +27,7 @@ urcl_t urcl_in(urcl_t port) {
 void urcl_out(urcl_t port, urcl_t data) {
     switch (port) {
         case 1: {
-            putchar(data);
+            printf("%lc", data);
             break;
         }
         case 16: {
@@ -68,7 +68,7 @@ void urcl_out(urcl_t port, urcl_t data) {
 }
 
 int main() {
-    setlocale(LC_NUMERIC, "");
+    setlocale(LC_ALL, "");
     struct timespec start, end;
     clock_gettime(CLOCK_REALTIME, &start);
 

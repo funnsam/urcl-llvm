@@ -63,7 +63,7 @@ urcl_t urcl_in(urcl_t port) {
 void urcl_out(urcl_t port, urcl_t data) {
     switch (port) {
         case 1: {
-            putchar(data);
+            printf("%lc", data);
             break;
         }
         case 16: {
@@ -123,6 +123,7 @@ void swap_bytes(uint16_t* buf, int size) {
 }
 
 int main(int argc, char* argv[]) {
+    setlocale(LC_ALL, "");
     if (argc < 2) {
         printf("Usage: %s <fs>\n", argv[0]);
         return 1;

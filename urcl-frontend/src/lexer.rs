@@ -7,14 +7,16 @@ pub struct Lexer<'a> {
     src: &'a str,
     was_at: usize,
     at_byte: usize,
+    float_t: usize,
 }
 
 impl<'a> Lexer<'a> {
-    pub fn new(src: &'a str) -> Self {
+    pub fn new(src: &'a str, float_t: usize) -> Self {
         Self {
             src,
             was_at: 0,
             at_byte: 0,
+            float_t,
         }
     }
 
@@ -162,10 +164,31 @@ impl<'a> Iterator for Lexer<'a> {
                     .map_or(Err(LexError::IntValueError), |v| Ok(Token::Int(v)))
                 },
                 _ => {
-                    while_char!(|c: char| c.is_ascii_digit());
-                    self.slice()
-                        .parse::<i128>()
-                        .map_or(Err(LexError::IntValueError), |v| Ok(Token::Int(v as u128)))
+                    let mut after_dot = false;
+                    while_char!(|c: char| {
+                        if !after_dot && c == '.' {
+                            after_dot = true;
+                            return true;
+                        }
+
+                        c.is_ascii_digit()
+                    });
+
+                    if !after_dot {
+                        self.slice()
+                            .parse::<i128>()
+                            .map_or(Err(LexError::IntValueError), |v| Ok(Token::Int(v as u128)))
+                    } else if self.float_t == 32 {
+                        self.slice()
+                            .parse::<f32>()
+                            .map_or(Err(LexError::FloatValueError), |v| Ok(Token::Int(v.to_bits() as u128)))
+                    } else if self.float_t == 64 {
+                        self.slice()
+                            .parse::<f64>()
+                            .map_or(Err(LexError::FloatValueError), |v| Ok(Token::Int(v.to_bits() as u128)))
+                    } else {
+                        todo!();
+                    }
                 },
             },
             Some('/') => match self.next_char() {
@@ -252,6 +275,7 @@ pub enum LexError {
     UnclosedStr,
     CharError,
     UnexpectedEof,
+    FloatValueError,
 }
 
 pub type LexResult<'a> = Result<Token<'a>, LexError>;

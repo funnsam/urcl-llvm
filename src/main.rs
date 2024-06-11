@@ -22,6 +22,28 @@ struct Args {
     output_file: String,
     #[arg(long)]
     emit_assembly: bool,
+
+    #[arg(long, default_value_t = 32, value_parser = float_ty)]
+    float: usize,
+}
+
+fn float_ty(s: &str) -> Result<usize, String> {
+    let v = match s.chars().nth(0) {
+        Some('f') => s[1..].parse::<usize>(),
+        _ => s.parse(),
+    }.map_err(|e| e.to_string())?;
+
+    // if matches!(v, 16 | 32 | 64 | 128) {
+    //     Ok(v)
+    // } else {
+    //     Err("invalid float bit width, can only be 16, 32, 64 or 128".to_string())
+    // }
+
+    if matches!(v, 32 | 64) {
+        Ok(v)
+    } else {
+        Err("invalid float bit width, can only be 32 or 64".to_string())
+    }
 }
 
 fn main() {
@@ -31,7 +53,7 @@ fn main() {
     };
 
     let src = std::fs::read_to_string(&args.urcl).unwrap();
-    let lexer = urcl_frontend::lexer::Lexer::new(&src);
+    let lexer = urcl_frontend::lexer::Lexer::new(&src, args.float);
     let parser = urcl_frontend::parser::Parser::new(lexer);
     let program = parser.parse_program(args.max_heap, args.max_stack).unwrap();
 
@@ -40,7 +62,10 @@ fn main() {
     let target = urcl_llvm_backend::Codegen::get_machine(args.triple.as_deref(), opt.clone());
     codegen.generate_code(
         &target,
-        args.use_global,
+        &urcl_llvm_backend::CodegenOptions {
+            use_global: args.use_global,
+            float_type: args.float,
+        },
     );
     codegen.dump();
     codegen.optimize(&target, opt.clone());
