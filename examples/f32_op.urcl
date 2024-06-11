@@ -1,5 +1,17 @@
 bits 32
 
+itof r1 @SMAX
+out %float r1
+out %text '\n'
+
+ftoi r1 6.9
+out %numb r1
+out %text '\n'
+
+frtoi r1 6.9
+out %numb r1
+out %text '\n'
+
 fadd r1 0.1 0.2
 out %float r1
 out %text '\n'
@@ -21,5 +33,13 @@ out %float r1
 out %text '\n'
 
 fabs r1 -0.1
+out %float r1
+out %text '\n'
+
+// (3(0.1 + 0.2) - 0.9) x 2^24
+fadd r1 0.1 0.2
+fmlt r1 r1 3.0
+fsub r1 r1 0.9
+fmlt r1 r1 16777216.0
 out %float r1
 out %text '\n'

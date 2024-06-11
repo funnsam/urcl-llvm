@@ -33,16 +33,10 @@ fn float_ty(s: &str) -> Result<usize, String> {
         _ => s.parse(),
     }.map_err(|e| e.to_string())?;
 
-    // if matches!(v, 16 | 32 | 64 | 128) {
-    //     Ok(v)
-    // } else {
-    //     Err("invalid float bit width, can only be 16, 32, 64 or 128".to_string())
-    // }
-
-    if matches!(v, 32 | 64) {
+    if matches!(v, 16 | 32 | 64 | 128) {
         Ok(v)
     } else {
-        Err("invalid float bit width, can only be 32 or 64".to_string())
+        Err("invalid float bit width, can only be 16, 32, 64 or 128".to_string())
     }
 }
 

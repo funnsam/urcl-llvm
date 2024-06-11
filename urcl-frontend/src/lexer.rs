@@ -187,7 +187,7 @@ impl<'a> Iterator for Lexer<'a> {
                             .parse::<f64>()
                             .map_or(Err(LexError::FloatValueError), |v| Ok(Token::Int(v.to_bits() as u128)))
                     } else {
-                        todo!();
+                        Err(LexError::CantParseFloatInPrec)
                     }
                 },
             },
@@ -276,6 +276,7 @@ pub enum LexError {
     CharError,
     UnexpectedEof,
     FloatValueError,
+    CantParseFloatInPrec,
 }
 
 pub type LexResult<'a> = Result<Token<'a>, LexError>;
