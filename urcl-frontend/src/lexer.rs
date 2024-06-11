@@ -76,6 +76,7 @@ impl<'a> Iterator for Lexer<'a> {
             };
             ($e: expr, $a: expr) => {
                 while let Some(c) = self.peek_next() {
+                    #[allow(clippy::blocks_in_conditions)]
                     if $e(c) {
                         $a();
                     } else {
@@ -91,6 +92,7 @@ impl<'a> Iterator for Lexer<'a> {
             (; $e: expr, $a: expr) => {
                 let mut not_ok = true;
                 while let Some(c) = self.peek_next() {
+                    #[allow(clippy::blocks_in_conditions)]
                     if $e(c) {
                         $a();
                     } else {

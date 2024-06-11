@@ -4,30 +4,29 @@
 #include <locale.h>
 #include <time.h>
 
-extern uint64_t urcl_main();
-typedef uint32_t urcl_t;
+extern size_t urcl_main();
 
 union WordAndFloat {
-    urcl_t w;
+    size_t w;
     float f;
 };
 
-urcl_t urcl_in(urcl_t port) {
+size_t urcl_in(size_t port) {
     switch (port) {
         case 40: {
-            return (urcl_t) rand();
+            return (size_t) rand();
         }
         default: {
-            printf("\n\x1b[1;33mW:\x1b[0m unknown port %%%u was read\n", port);
+            printf("\n\x1b[1;33mW:\x1b[0m unknown port %%%lu was read\n", port);
             return 0;
         }
     }
 }
 
-void urcl_out(urcl_t port, urcl_t data) {
+void urcl_out(size_t port, size_t data) {
     switch (port) {
         case 1: {
-            printf("%lc", data);
+            printf("%lc", (uint32_t) data);
             break;
         }
         case 16: {
@@ -40,15 +39,15 @@ void urcl_out(urcl_t port, urcl_t data) {
         }
         case 2:
         case 25: {
-            printf("%u", data);
+            printf("%lu", data);
             break;
         }
         case 24: {
-            printf("%i", (int32_t) data);
+            printf("%li", data);
             break;
         }
         case 27: {
-            printf("%x", data);
+            printf("%lx", data);
             break;
         }
         case 28: {
@@ -61,7 +60,7 @@ void urcl_out(urcl_t port, urcl_t data) {
             break;
         }
         default: {
-            printf("\n\x1b[1;33mW:\x1b[0m unknown port %%%u was written to with %u\n", port, data);
+            printf("\n\x1b[1;33mW:\x1b[0m unknown port %%%lu was written to with %lu\n", port, data);
             break;
         }
     }
@@ -72,7 +71,7 @@ int main() {
     struct timespec start, end;
     clock_gettime(CLOCK_REALTIME, &start);
 
-    uint64_t inst = urcl_main();
+    size_t inst = urcl_main();
 
     clock_gettime(CLOCK_REALTIME, &end);
 

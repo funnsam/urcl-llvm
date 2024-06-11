@@ -53,17 +53,26 @@ impl<'a> Codegen<'a> {
         let word_1 = word_t.const_int(1, false);
         let word_0 = word_t.const_zero();
 
+        let zext_or_trunc = |i: values::IntValue<'a>, t: types::IntType<'a>| {
+            use core::cmp::Ordering::*;
+            match i.get_type().get_bit_width().cmp(&t.get_bit_width()) {
+                Greater => self.builder.build_int_truncate(i, t, "conv_trunc").unwrap(),
+                Less => self.builder.build_int_z_extend(i, t, "conv_zext").unwrap(),
+                Equal => i,
+            }
+        };
+
         let main = self
             .module
             .add_function("urcl_main", mach_t.fn_type(&[], false), None);
         let port_out = self.module.add_function(
             "urcl_out",
-            void.fn_type(&[word_t.into(); 2], false),
+            void.fn_type(&[mach_t.into(); 2], false),
             Some(module::Linkage::External),
         );
         let port_in = self.module.add_function(
             "urcl_in",
-            word_t.fn_type(&[word_t.into()], false),
+            word_t.fn_type(&[mach_t.into()], false),
             Some(module::Linkage::External),
         );
 
@@ -131,17 +140,6 @@ impl<'a> Codegen<'a> {
             let gen_big_switch_table = |v| {
                 self.builder.build_store(big_switch_to, v).unwrap();
                 self.builder.build_unconditional_branch(big_switch_bb).unwrap();
-                /* self.builder
-                    .build_switch(
-                        v,
-                        *inst_bb.last().unwrap(),
-                        &inst_bb
-                            .iter()
-                            .enumerate()
-                            .map(|(i, b)| (word_t.const_int(i as _, false), *b))
-                            .collect::<Vec<_>>(),
-                    )
-                    .unwrap(); */
             };
 
             let get_reg = |r: &_| match r {
@@ -276,15 +274,7 @@ impl<'a> Codegen<'a> {
 
             let bit_itof = |i: values::IntValue<'a>| {
                 let float_it = self.context.custom_width_int_type(options.float_type as _);
-                let i = if self.program.bits > options.float_type {
-                    self.builder.build_int_truncate(i, float_it, "bitw_itof_trunc").unwrap()
-                } else if self.program.bits < options.float_type {
-                    // ur probably fucked up
-                    self.builder.build_int_z_extend(i, float_it, "bitw_itof_zext").unwrap()
-                } else {
-                    i
-                };
-
+                let i = zext_or_trunc(i, float_it);
                 self.builder.build_bitcast(i, float_t, "bitw_itof").unwrap().into_float_value()
             };
 
@@ -295,19 +285,14 @@ impl<'a> Codegen<'a> {
                     .unwrap()
                     .into_int_value();
 
-                if self.program.bits > options.float_type {
-                    self.builder.build_int_z_extend(i, word_t, "bitw_ftoi_zext").unwrap()
-                } else if self.program.bits < options.float_type {
-                    self.builder.build_int_truncate(i, word_t, "bitw_ftoi_trunc").unwrap()
-                } else {
-                    i
-                }
+                zext_or_trunc(i, word_t)
             };
 
             macro_rules! gen {
                 (2op $d: tt $a: tt $b: tt $gen: expr) => {{
                     let a = get_any($a);
                     let b = get_any($b);
+                    #[allow(clippy::blocks_in_conditions)]
                     if set_reg($d, $gen(a, b)) {
                         self.builder
                             .build_unconditional_branch(inst_bb[pc + 1])
@@ -316,6 +301,7 @@ impl<'a> Codegen<'a> {
                 }};
                 (1op $d: tt $a: tt $gen: expr) => {{
                     let a = get_any($a);
+                    #[allow(clippy::blocks_in_conditions)]
                     if set_reg($d, $gen(a)) {
                         self.builder
                             .build_unconditional_branch(inst_bb[pc + 1])
@@ -323,6 +309,7 @@ impl<'a> Codegen<'a> {
                     }
                 }};
                 (none $d: tt $gen: expr) => {{
+                    #[allow(clippy::blocks_in_conditions)]
                     if set_reg($d, $gen()) {
                         self.builder
                             .build_unconditional_branch(inst_bb[pc + 1])
@@ -345,6 +332,7 @@ impl<'a> Codegen<'a> {
                     let b = get_any($b);
                     let c = $gen(a, b);
                     let c = self.builder.build_int_s_extend(c, word_t, "set_sext").unwrap();
+                    #[allow(clippy::blocks_in_conditions)]
                     if set_reg($d, c) {
                         self.builder
                             .build_unconditional_branch(inst_bb[pc + 1])
@@ -358,6 +346,7 @@ impl<'a> Codegen<'a> {
                     let b = bit_itof(b);
                     let c = $gen(a, b);
                     let c = bit_ftoi(c);
+                    #[allow(clippy::blocks_in_conditions)]
                     if set_reg($d, c) {
                         self.builder
                             .build_unconditional_branch(inst_bb[pc + 1])
@@ -369,6 +358,7 @@ impl<'a> Codegen<'a> {
                     let a = bit_itof(a);
                     let c = $gen(a);
                     let c = bit_ftoi(c);
+                    #[allow(clippy::blocks_in_conditions)]
                     if set_reg($d, c) {
                         self.builder
                             .build_unconditional_branch(inst_bb[pc + 1])
@@ -697,19 +687,23 @@ impl<'a> Codegen<'a> {
                     let p = get_any(p);
                     let v = get_any(v);
                     self.builder
-                        .build_call(port_out, &[p.into(), v.into()], "out")
+                        .build_call(port_out, &[
+                            zext_or_trunc(p, mach_t).into(),
+                            zext_or_trunc(v, mach_t).into(),
+                        ], "out")
                         .unwrap();
                     self.builder
                         .build_unconditional_branch(inst_bb[pc + 1])
                         .unwrap();
                 },
                 ast::Instruction::In(r, p) => gen!(1op r p |p: values::IntValue<'a>| {
-                    self.builder
-                        .build_call(port_in, &[p.into()], "in")
+                    let i = self.builder
+                        .build_call(port_in, &[zext_or_trunc(p, mach_t).into()], "in")
                         .unwrap()
                         .try_as_basic_value()
                         .unwrap_left()
-                        .into_int_value()
+                        .into_int_value();
+                    zext_or_trunc(i, word_t)
                 }),
                 ast::Instruction::Umlt(d, a, b) => gen!(2op d a b |a, b| {
                     let ext_t = self.context.custom_width_int_type(self.program.bits as u32 * 2);
@@ -835,8 +829,8 @@ impl<'a> Codegen<'a> {
         targets::Target::initialize_all(&targets::InitializationConfig::default());
 
         let triple = triple.map_or_else(
-            || targets::TargetMachine::get_default_triple(),
-            |t| targets::TargetTriple::create(t),
+            targets::TargetMachine::get_default_triple,
+            targets::TargetTriple::create,
         );
         let target = targets::Target::from_triple(&triple).unwrap();
         let cpu = targets::TargetMachine::get_host_cpu_name();

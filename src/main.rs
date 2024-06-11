@@ -28,7 +28,7 @@ struct Args {
 }
 
 fn float_ty(s: &str) -> Result<usize, String> {
-    let v = match s.chars().nth(0) {
+    let v = match s.chars().next() {
         Some('f') => s[1..].parse::<usize>(),
         _ => s.parse(),
     }.map_err(|e| e.to_string())?;
@@ -43,7 +43,7 @@ fn float_ty(s: &str) -> Result<usize, String> {
 fn main() {
     let args = Args::parse();
     let opt: urcl_llvm_backend::OptimizationLevel = unsafe {
-        core::mem::transmute(args.opt.clone())
+        core::mem::transmute(args.opt)
     };
 
     let src = std::fs::read_to_string(&args.urcl).unwrap();
@@ -53,7 +53,7 @@ fn main() {
 
     let ctx = urcl_llvm_backend::CodegenContext::new();
     let mut codegen = urcl_llvm_backend::Codegen::new(&ctx, &program);
-    let target = urcl_llvm_backend::Codegen::get_machine(args.triple.as_deref(), opt.clone());
+    let target = urcl_llvm_backend::Codegen::get_machine(args.triple.as_deref(), opt);
     codegen.generate_code(
         &target,
         &urcl_llvm_backend::CodegenOptions {
@@ -62,7 +62,7 @@ fn main() {
         },
     );
     codegen.dump();
-    codegen.optimize(&target, opt.clone());
+    codegen.optimize(&target, opt);
     codegen.dump_opt();
     codegen.write_obj(
         &target,

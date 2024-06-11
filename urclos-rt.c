@@ -28,18 +28,17 @@
     #define getch getchar
 #endif
 
-extern uint64_t urcl_main();
-typedef uint16_t urcl_t;
+extern size_t urcl_main();
 
 union WordAndFloat {
-    urcl_t w;
+    size_t w;
     float f;
 };
 
-urcl_t* fs;
-urcl_t address = 0;
+uint16_t* fs;
+size_t address = 0;
 
-urcl_t urcl_in(urcl_t port) {
+size_t urcl_in(size_t port) {
     switch (port) {
         case 1: {
             return getchar();
@@ -48,22 +47,22 @@ urcl_t urcl_in(urcl_t port) {
             return address;
         }
         case 33: {
-            return fs[(int) address];
+            return (size_t) fs[(int) address];
         }
         case 40: {
-            return (urcl_t) rand();
+            return (size_t) rand();
         }
         default: {
-            printf("\n\x1b[1;33mW:\x1b[0m unknown port %%%u was read\n", port);
+            printf("\n\x1b[1;33mW:\x1b[0m unknown port %%%lu was read\n", port);
             return 0;
         }
     }
 }
 
-void urcl_out(urcl_t port, urcl_t data) {
+void urcl_out(size_t port, size_t data) {
     switch (port) {
         case 1: {
-            printf("%lc", data);
+            printf("%lc", (uint32_t) data);
             break;
         }
         case 16: {
@@ -76,15 +75,15 @@ void urcl_out(urcl_t port, urcl_t data) {
         }
         case 2:
         case 25: {
-            printf("%u", data);
+            printf("%lu", data);
             break;
         }
         case 24: {
-            printf("%i", (int32_t) data);
+            printf("%li", data);
             break;
         }
         case 27: {
-            printf("%04x", data);
+            printf("%04lx", data);
             break;
         }
         case 28: {
@@ -97,7 +96,7 @@ void urcl_out(urcl_t port, urcl_t data) {
             break;
         }
         case 33: {
-            fs[(int) address] = data;
+            fs[(int) address] = (uint16_t) data;
             break;
         }
         case 40: {
@@ -105,7 +104,7 @@ void urcl_out(urcl_t port, urcl_t data) {
             break;
         }
         default: {
-            printf("\n\x1b[1;33mW:\x1b[0m unknown port %%%u was written to with %u\n", port, data);
+            printf("\n\x1b[1;33mW:\x1b[0m unknown port %%%lu was written to with %lu\n", port, data);
             break;
         }
     }
@@ -138,8 +137,8 @@ int main(int argc, char* argv[]) {
     fseek(fs_file, 0, SEEK_END);
     int size = ftell(fs_file);
     rewind(fs_file);
-    fs = (urcl_t*) malloc(size);
-    if (fread(fs, 1, size, fs_file) != (size_t) size) {
+    fs = (uint16_t*) malloc(size);
+    if ((int) fread(fs, 1, size, fs_file) != size) {
         perror("Loading filesystem failed");
         return 3;
     }
