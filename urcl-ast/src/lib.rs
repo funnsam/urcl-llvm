@@ -18,7 +18,7 @@ pub struct Program {
 }
 
 macro_rules! instr {
-    ($($name: ident [$($arg: tt)*]),* $(,)?) => {
+    ($($name: ident [$($arg: tt)*] $([$($ai: tt)*])?),* $(,)?) => {
         #[derive(Debug, Clone, strum::EnumDiscriminants)]
         #[strum_discriminants(derive(strum::Display))]
         #[strum_discriminants(strum(serialize_all = "lowercase"))]
@@ -31,6 +31,7 @@ macro_rules! instr {
                 $(if i.eq_ignore_ascii_case(stringify!($name)) {
                     return Some(InstProperties {
                         operands: &[$(instr!(opk $arg)),*],
+                        port_v2: instr!(gen $($($ai)*)?),
                     });
                 })*
 
@@ -67,6 +68,9 @@ macro_rules! instr {
     (fromany a $e: expr) => {
         $e
     };
+
+    (gen) => { None };
+    (gen $($i: tt)+) => { Some(&[$($i),+]) };
 }
 
 instr! {
@@ -138,7 +142,7 @@ instr! {
     SSetLe [r a a],
     Abs [r a],
     Out [a a],
-    In [r a],
+    In [r a] [1 0],
     Umlt [r a a],
     SUmlt [r a a],
 
@@ -195,6 +199,7 @@ impl fmt::Debug for Any {
 #[derive(Debug, Clone)]
 pub struct InstProperties {
     pub operands: &'static [OperandKind],
+    pub port_v2: Option<&'static [usize]>,
 }
 
 #[derive(Debug, Clone)]

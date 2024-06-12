@@ -1,8 +1,8 @@
 use inkwell::*;
 use urcl_ast as ast;
 
-pub use targets::FileType;
 pub use inkwell::OptimizationLevel;
+pub use targets::FileType;
 
 pub struct CodegenContext(context::Context);
 
@@ -40,7 +40,9 @@ impl<'a> Codegen<'a> {
 
     pub fn generate_code(&mut self, target: &targets::TargetMachine, options: &CodegenOptions) {
         let word_t = self.context.custom_width_int_type(self.program.bits as u32);
-        let mach_t = self.context.ptr_sized_int_type(&target.get_target_data(), None);
+        let mach_t = self
+            .context
+            .ptr_sized_int_type(&target.get_target_data(), None);
         let float_t = match options.float_type {
             16 => self.context.f16_type(),
             32 => self.context.f32_type(),
@@ -139,7 +141,9 @@ impl<'a> Codegen<'a> {
         for (pc, i) in self.program.instructions.iter().enumerate() {
             let gen_big_switch_table = |v| {
                 self.builder.build_store(big_switch_to, v).unwrap();
-                self.builder.build_unconditional_branch(big_switch_bb).unwrap();
+                self.builder
+                    .build_unconditional_branch(big_switch_bb)
+                    .unwrap();
             };
 
             let get_reg = |r: &_| match r {
@@ -182,13 +186,14 @@ impl<'a> Codegen<'a> {
 
             let ram_gep = |a| unsafe {
                 let a = if mach_t.get_bit_width() > word_t.get_bit_width() {
-                    self.builder.build_int_z_extend(a, mach_t, "ram_gep_zext").unwrap()
+                    self.builder
+                        .build_int_z_extend(a, mach_t, "ram_gep_zext")
+                        .unwrap()
                 } else {
                     a
                 };
 
-                self
-                    .builder
+                self.builder
                     .build_in_bounds_gep(word_t, ram, &[a], "ram_gep")
                     .unwrap()
             };
@@ -275,12 +280,16 @@ impl<'a> Codegen<'a> {
             let bit_itof = |i: values::IntValue<'a>| {
                 let float_it = self.context.custom_width_int_type(options.float_type as _);
                 let i = zext_or_trunc(i, float_it);
-                self.builder.build_bitcast(i, float_t, "bitw_itof").unwrap().into_float_value()
+                self.builder
+                    .build_bitcast(i, float_t, "bitw_itof")
+                    .unwrap()
+                    .into_float_value()
             };
 
             let bit_ftoi = |f: values::FloatValue<'a>| {
                 let float_it = self.context.custom_width_int_type(options.float_type as _);
-                let i = self.builder
+                let i = self
+                    .builder
                     .build_bitcast(f, float_it, "bitw_ftoi")
                     .unwrap()
                     .into_int_value();
@@ -331,7 +340,10 @@ impl<'a> Codegen<'a> {
                     let a = get_any($a);
                     let b = get_any($b);
                     let c = $gen(a, b);
-                    let c = self.builder.build_int_s_extend(c, word_t, "set_sext").unwrap();
+                    let c = self
+                        .builder
+                        .build_int_s_extend(c, word_t, "set_sext")
+                        .unwrap();
                     #[allow(clippy::blocks_in_conditions)]
                     if set_reg($d, c) {
                         self.builder
@@ -687,10 +699,14 @@ impl<'a> Codegen<'a> {
                     let p = get_any(p);
                     let v = get_any(v);
                     self.builder
-                        .build_call(port_out, &[
-                            zext_or_trunc(p, mach_t).into(),
-                            zext_or_trunc(v, mach_t).into(),
-                        ], "out")
+                        .build_call(
+                            port_out,
+                            &[
+                                zext_or_trunc(p, mach_t).into(),
+                                zext_or_trunc(v, mach_t).into(),
+                            ],
+                            "out",
+                        )
                         .unwrap();
                     self.builder
                         .build_unconditional_branch(inst_bb[pc + 1])
@@ -784,25 +800,24 @@ impl<'a> Codegen<'a> {
         ret();
 
         self.builder.position_at_end(big_switch_bb);
-        let v = self.builder.build_load(word_t, big_switch_to, "get_addr").unwrap();
+        let v = self
+            .builder
+            .build_load(word_t, big_switch_to, "get_addr")
+            .unwrap();
         self.builder
             .build_switch(
                 v.into_int_value(),
                 *inst_bb.last().unwrap(),
                 &inst_bb
-                .iter()
-                .enumerate()
-                .map(|(i, b)| (word_t.const_int(i as _, false), *b))
-                .collect::<Vec<_>>(),
+                    .iter()
+                    .enumerate()
+                    .map(|(i, b)| (word_t.const_int(i as _, false), *b))
+                    .collect::<Vec<_>>(),
             )
             .unwrap();
     }
 
-    pub fn optimize(
-        &self,
-        target: &targets::TargetMachine,
-        opt: OptimizationLevel,
-    ) {
+    pub fn optimize(&self, target: &targets::TargetMachine, opt: OptimizationLevel) {
         let pass = passes::PassBuilderOptions::create();
         self.module
             .run_passes(&Self::get_passes(opt as _), target, pass)
@@ -850,10 +865,13 @@ impl<'a> Codegen<'a> {
             .unwrap()
     }
 
-    pub fn write_obj(&self, tm: &targets::TargetMachine, ft: targets::FileType, path: &std::path::Path) {
-        tm
-            .write_to_file(&self.module, ft, path)
-            .unwrap();
+    pub fn write_obj(
+        &self,
+        tm: &targets::TargetMachine,
+        ft: targets::FileType,
+        path: &std::path::Path,
+    ) {
+        tm.write_to_file(&self.module, ft, path).unwrap();
     }
 
     fn get_passes(lv: usize) -> String {
@@ -866,9 +884,9 @@ impl<'a> Codegen<'a> {
             .map_or("-17", |_| "");
 
         let mut proc = std::process::Command::new("sh");
-        let proc = proc
-            .arg("-c")
-            .arg(format!("llvm-as{suffix} < /dev/null | opt{suffix} --print-pipeline-passes -O{lv} 2> /dev/null"));
+        let proc = proc.arg("-c").arg(format!(
+            "llvm-as{suffix} < /dev/null | opt{suffix} --print-pipeline-passes -O{lv} 2> /dev/null"
+        ));
 
         let out = proc.output().unwrap();
         // if !out.status.success() {

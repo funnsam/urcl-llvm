@@ -31,7 +31,8 @@ fn float_ty(s: &str) -> Result<usize, String> {
     let v = match s.chars().next() {
         Some('f') => s[1..].parse::<usize>(),
         _ => s.parse(),
-    }.map_err(|e| e.to_string())?;
+    }
+    .map_err(|e| e.to_string())?;
 
     if matches!(v, 16 | 32 | 64 | 128) {
         Ok(v)
@@ -42,9 +43,7 @@ fn float_ty(s: &str) -> Result<usize, String> {
 
 fn main() {
     let args = Args::parse();
-    let opt: urcl_llvm_backend::OptimizationLevel = unsafe {
-        core::mem::transmute(args.opt)
-    };
+    let opt: urcl_llvm_backend::OptimizationLevel = unsafe { core::mem::transmute(args.opt) };
 
     let src = std::fs::read_to_string(&args.urcl).unwrap();
     let lexer = urcl_frontend::lexer::Lexer::new(&src, args.float);

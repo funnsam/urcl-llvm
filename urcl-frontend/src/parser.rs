@@ -22,6 +22,8 @@ pub struct Parser<'a> {
     dw: Vec<(RawOperand<'a>, Span)>,
 
     errors: Vec<(ParseError, Span)>,
+
+    port_v2: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -68,6 +70,8 @@ impl<'a> Parser<'a> {
             dw: Vec::new(),
 
             errors: Vec::new(),
+
+            port_v2: false,
         }
     }
 
@@ -186,26 +190,38 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn parse_inst_inner(&mut self, errors: &mut bool, oprs: &mut [(RawOperand<'a>, Span)], nth: usize, i: &ast::InstProperties) {
+        if matches!(self.peek_next(), Some(Ok(lexer::Token::Newline)) | None) {
+            *errors = true;
+            self.errors
+                .push((ParseError::UnexpectedNewline, self.span()));
+        }
+
+        let opr = self.parse_operand(&i.operands[nth]);
+        opr.map_or_else(
+            |e| {
+                *errors = true;
+                self.errors.push(e);
+            },
+            |o| oprs[nth] = o,
+        );
+    }
+
     fn parse_inst(&mut self, n: &'a str) -> Result<MidInst<'a>, ()> {
         if let Some(i) = ast::Instruction::properties(n) {
-            let mut oprs = Vec::with_capacity(i.operands.len());
+            let mut oprs = vec![(RawOperand::Immediate(ast::Immediate(0)), 0..0); i.operands.len()];
             let mut errors = false;
-            for op in i.operands.iter() {
-                if matches!(self.peek_next(), Some(Ok(lexer::Token::Newline)) | None) {
-                    errors = true;
-                    self.errors
-                        .push((ParseError::UnexpectedNewline, self.span()));
-                    break;
-                }
 
-                let opr = self.parse_operand(op);
-                opr.map_or_else(
-                    |e| {
-                        errors = true;
-                        self.errors.push(e);
-                    },
-                    |o| oprs.push(o),
-                );
+            if let (true, Some(j)) = (self.port_v2, i.port_v2) {
+                for nth in j.iter().copied() {
+                    self.parse_inst_inner(&mut errors, &mut oprs, nth, &i);
+                    if errors { break; }
+                }
+            } else {
+                for nth in 0..i.operands.len() {
+                    self.parse_inst_inner(&mut errors, &mut oprs, nth, &i);
+                    if errors { break; }
+                }
             }
 
             self.expect_nl();
@@ -369,6 +385,14 @@ impl<'a> Parser<'a> {
                         },
                     }
                 },
+                Ok(lexer::Token::Macro(n)) if n.eq_ignore_ascii_case("port_v2") => {
+                    self.expect_nl();
+                    self.port_v2 = true;
+                },
+                Ok(lexer::Token::Macro(_)) => {
+                    self.wait_nl();
+                    self.errors.push((ParseError::UnknownMacro, self.total_span()));
+                },
                 Ok(lexer::Token::Name(n)) => {
                     pending_labels.iter().for_each(|i| {
                         self.labels.insert(i, self.instructions.len() as _);
@@ -423,13 +447,20 @@ impl<'a> Parser<'a> {
                 .map(|i| {
                     ast::Instruction::construct(
                         i.0,
-                        i.1.iter().map(|i| self.finalize(i, dw_len, heap_size)).collect(),
+                        i.1.iter()
+                            .map(|i| self.finalize(i, dw_len, heap_size))
+                            .collect(),
                     )
                 })
                 .collect(),
             dw: dw
                 .iter()
-                .map(|i| self.finalize(i, dw_len, heap_size).try_as_immediate().unwrap().0)
+                .map(|i| {
+                    self.finalize(i, dw_len, heap_size)
+                        .try_as_immediate()
+                        .unwrap()
+                        .0
+                })
                 .collect(),
         };
 

@@ -183,11 +183,15 @@ impl<'a> Iterator for Lexer<'a> {
                     } else if self.float_t == 32 {
                         self.slice()
                             .parse::<f32>()
-                            .map_or(Err(LexError::FloatValueError), |v| Ok(Token::Int(v.to_bits() as u128)))
+                            .map_or(Err(LexError::FloatValueError), |v| {
+                                Ok(Token::Int(v.to_bits() as u128))
+                            })
                     } else if self.float_t == 64 {
                         self.slice()
                             .parse::<f64>()
-                            .map_or(Err(LexError::FloatValueError), |v| Ok(Token::Int(v.to_bits() as u128)))
+                            .map_or(Err(LexError::FloatValueError), |v| {
+                                Ok(Token::Int(v.to_bits() as u128))
+                            })
                     } else {
                         Err(LexError::CantParseFloatInPrec)
                     }
