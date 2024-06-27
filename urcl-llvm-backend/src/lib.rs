@@ -89,7 +89,7 @@ impl<'a> Codegen<'a> {
             })
             .collect::<Vec<_>>();
 
-        let ram_size = self.program.stack_size + self.program.heap_size + self.program.dw.len();
+        let ram_size = self.program.min_stack + self.program.heap_size + self.program.dw.len();
         let ram_t = word_t.array_type(ram_size as _);
 
         let ram = if options.use_global {

@@ -45,7 +45,7 @@ urclos_rt.o:
 	$(CC) urclos-rt.c -c -o urclos_rt.o $(CC_FLAGS)
 
 urclos: urclos_rt.o
-	cargo r -r -- urcl-os/urclos3.urcl -O3 --max-heap 65382 --use-global
+	cargo r -r -- urcl-os/urclos3.urcl -O3 --max-ram 65536 --use-global
 	$(LD) urcl.o urclos_rt.o $(LD_FLAGS)
 	./a.out urcl-os/fs.bin
 

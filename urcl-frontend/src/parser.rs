@@ -262,8 +262,7 @@ impl<'a> Parser<'a> {
 
     pub fn parse_program(
         mut self,
-        max_heap: usize,
-        max_stack: usize,
+        max_ram: usize,
     ) -> Result<ast::Program, Vec<(ParseError, Span)>> {
         let mut pending_labels: Vec<&str> = Vec::new();
 
@@ -426,8 +425,9 @@ impl<'a> Parser<'a> {
         self.registers = Some(self.registers.unwrap_or(8));
         self.min_stack = Some(self.min_stack.unwrap_or(8));
         self.min_heap = Some(self.min_heap.unwrap_or(16));
-        let stack_size = self.min_stack.unwrap().max(max_stack);
-        let heap_size = self.min_heap.unwrap().max(max_heap);
+        let heap_size = self.min_heap.unwrap().max(
+            max_ram.saturating_sub(self.min_stack.unwrap()).saturating_sub(self.dw.len())
+        );
 
         let instructions = core::mem::take(&mut self.instructions);
         let dw = core::mem::take(&mut self.dw);
@@ -439,7 +439,6 @@ impl<'a> Parser<'a> {
             min_stack: self.min_stack.unwrap(),
             min_heap: self.min_heap.unwrap(),
 
-            stack_size,
             heap_size,
 
             instructions: instructions

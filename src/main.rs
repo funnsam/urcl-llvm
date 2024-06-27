@@ -13,9 +13,7 @@ struct Args {
     opt: u32,
 
     #[arg(long, default_value_t = 0)]
-    max_heap: usize,
-    #[arg(long, default_value_t = 0)]
-    max_stack: usize,
+    max_ram: usize,
 
     #[arg(long)]
     use_global: bool,
@@ -50,7 +48,7 @@ fn main() {
     let src = std::fs::read_to_string(&args.urcl).unwrap();
     let lexer = urcl_frontend::lexer::Lexer::new(&src, args.float);
     let parser = urcl_frontend::parser::Parser::new(lexer);
-    let program = parser.parse_program(args.max_heap, args.max_stack).unwrap();
+    let program = parser.parse_program(args.max_ram).unwrap();
 
     let ctx = urcl_llvm_backend::CodegenContext::new();
     let mut codegen = urcl_llvm_backend::Codegen::new(&ctx, &program);

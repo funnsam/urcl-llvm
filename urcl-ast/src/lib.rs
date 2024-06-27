@@ -9,7 +9,6 @@ pub struct Program {
     pub min_stack: usize,
     pub min_heap: usize,
 
-    pub stack_size: usize,
     pub heap_size: usize,
 
     // body
@@ -309,7 +308,6 @@ impl fmt::Display for Program {
         writeln!(f, "minreg {}", self.registers)?;
         writeln!(f, "minstack {}", self.min_stack)?;
         writeln!(f, "minheap {}", self.min_heap)?;
-        writeln!(f, "// target stack {}", self.stack_size)?;
         writeln!(f, "// target heap {}", self.heap_size)?;
         writeln!(f, "\n// inst")?;
 
