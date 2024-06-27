@@ -6,6 +6,8 @@ struct Args {
 
     #[arg(long)]
     triple: Option<String>,
+    #[arg(long)]
+    features: Option<String>,
 
     #[arg(short = 'O', default_value_t = 0, value_parser = clap::value_parser!(u32).range(0..=3))]
     opt: u32,
@@ -52,7 +54,11 @@ fn main() {
 
     let ctx = urcl_llvm_backend::CodegenContext::new();
     let mut codegen = urcl_llvm_backend::Codegen::new(&ctx, &program);
-    let target = urcl_llvm_backend::Codegen::get_machine(args.triple.as_deref(), opt);
+    let target = urcl_llvm_backend::Codegen::get_machine(
+        args.triple.as_deref(),
+        args.features.as_deref(),
+        opt.clone(),
+    );
     codegen.generate_code(
         &target,
         &urcl_llvm_backend::CodegenOptions {

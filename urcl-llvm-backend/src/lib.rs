@@ -840,7 +840,7 @@ impl<'a> Codegen<'a> {
             .write_bitcode_to_path(std::path::Path::new("urcl.opt.bc"));
     }
 
-    pub fn get_machine(triple: Option<&str>, opt: OptimizationLevel) -> targets::TargetMachine {
+    pub fn get_machine(triple: Option<&str>, features: Option<&str>, opt: OptimizationLevel) -> targets::TargetMachine {
         targets::Target::initialize_all(&targets::InitializationConfig::default());
 
         let triple = triple.map_or_else(
@@ -849,7 +849,7 @@ impl<'a> Codegen<'a> {
         );
         let target = targets::Target::from_triple(&triple).unwrap();
         let cpu = targets::TargetMachine::get_host_cpu_name();
-        let features = targets::TargetMachine::get_host_cpu_features();
+        let ft = targets::TargetMachine::get_host_cpu_features();
         let reloc = targets::RelocMode::DynamicNoPic;
         let model = targets::CodeModel::Default;
 
@@ -857,7 +857,7 @@ impl<'a> Codegen<'a> {
             .create_target_machine(
                 &triple,
                 cpu.to_str().unwrap(),
-                features.to_str().unwrap(),
+                features.unwrap_or_else(|| ft.to_str().unwrap()),
                 opt,
                 reloc,
                 model,
