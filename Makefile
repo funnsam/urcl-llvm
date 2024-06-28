@@ -37,7 +37,7 @@ runtime.o:
 	$(CC) generic-rt.c -c -o runtime.o $(CC_FLAGS)
 
 mandelbrot: runtime.o
-	cargo r -r -- benchmarks/mandelbrot-fortran.urcl -O3
+	cargo r -r -- benchmarks/mandelbrot-bf.urcl -O3
 	$(LD) urcl.o runtime.o $(LD_FLAGS)
 	./a.out
 
