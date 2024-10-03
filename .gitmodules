@@ -1,3 +1,4 @@
 [submodule "urcl-os"]
 	path = urcl-os
 	url = git@github.com:funnsam/URCL-OS
+    ignore = dirty

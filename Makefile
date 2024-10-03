@@ -3,51 +3,33 @@ CC=gcc
 LD_FLAGS=-O3
 LD=gcc
 
-test: test_runtime.o core basic1 basic2 special_regs complex
+test: tests/core tests/basic1 tests/basic2 tests/special_regs tests/complex
+	for f in `echo "$^"`; do \
+		./$$f; \
+	done
 
-test_runtime.o:
-	$(CC) tests/runtime.c -c -o test_runtime.o $(CC_FLAGS)
+tests/runtime.o:
+	$(CC) tests/runtime.c -c -o tests/runtime.o $(CC_FLAGS)
 
-core: test_runtime.o
-	cargo r -r -- tests/core.urcl -O3
-	$(LD) urcl.o test_runtime.o $(LD_FLAGS)
-	./a.out
-
-basic1: test_runtime.o
-	cargo r -r -- tests/basic1.urcl -O3
-	$(LD) urcl.o test_runtime.o $(LD_FLAGS)
-	./a.out
-
-basic2: test_runtime.o
-	cargo r -r -- tests/basic2.urcl -O3
-	$(LD) urcl.o test_runtime.o $(LD_FLAGS)
-	./a.out
-
-special_regs: test_runtime.o
-	cargo r -r -- tests/special_regs.urcl -O3
-	$(LD) urcl.o test_runtime.o $(LD_FLAGS)
-	./a.out
-
-complex: test_runtime.o
-	cargo r -r -- tests/complex.urcl -O3
-	$(LD) urcl.o test_runtime.o $(LD_FLAGS)
-	./a.out
-
-runtime.o:
-	$(CC) generic-rt.c -c -o runtime.o $(CC_FLAGS)
-
-mandelbrot: runtime.o
-	cargo r -r -- benchmarks/mandelbrot-bf.urcl -O3
-	$(LD) urcl.o runtime.o $(LD_FLAGS)
-	./a.out
+generic_rt.o:
+	$(CC) generic_rt.c -c -o generic_rt.o $(CC_FLAGS)
 
 urclos_rt.o:
-	$(CC) urclos-rt.c -c -o urclos_rt.o $(CC_FLAGS)
+	$(CC) urclos_rt.c -c -o urclos_rt.o $(CC_FLAGS)
 
-urclos: urclos_rt.o
-	cargo r -r -- urcl-os/urclos3.urcl -O3 --max-ram 65536 --use-global
-	$(LD) urcl.o urclos_rt.o $(LD_FLAGS)
-	./a.out urcl-os/fs.bin
+%.o: %.urcl
+	urcl-llvm $< -O3 -o $@
+
+tests/%: tests/runtime.o tests/%.o
+	$(LD) $^ -o $@ $(LD_FLAGS)
+
+benchmarks/%: generic_rt.o benchmarks/%.o
+	$(LD) $^ -o $@ $(LD_FLAGS)
+
+urclos: urclos_rt.o urcl-os/urclos3.o
+	$(LD) $^ -o $@ $(LD_FLAGS)
 
 clean:
 	- rm *.o
+
+.PHONY: test clean
