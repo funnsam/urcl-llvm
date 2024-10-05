@@ -2,6 +2,7 @@ use clap::*;
 
 #[derive(Parser, Debug)]
 struct Args {
+    /// The file to be compiled
     urcl: String,
 
     #[arg(long)]
@@ -9,16 +10,20 @@ struct Args {
     #[arg(long)]
     features: Option<String>,
 
+    /// Optimization level (-O0 to -O3)
     #[arg(short = 'O', default_value_t = 0, value_parser = clap::value_parser!(u32).range(0..=3))]
     opt: u32,
 
     #[arg(long, default_value_t = 0)]
     max_ram: usize,
 
+    /// Use a global array for RAM instead of stack allocating
     #[arg(long)]
     use_global: bool,
+    /// Float operation bit width
     #[arg(long, default_value_t = 32, value_parser = float_ty)]
     float: usize,
+    /// Use native addresses to jump indirectly (can change program behavior)
     #[arg(long)]
     native_addr: bool,
 
@@ -26,6 +31,8 @@ struct Args {
     output_file: String,
     #[arg(long)]
     emit_assembly: bool,
+    #[arg(long)]
+    emit_ir: bool,
 }
 
 fn float_ty(s: &str) -> Result<usize, String> {
@@ -58,14 +65,17 @@ fn main() {
         args.features.as_deref(),
         opt.clone(),
     );
+
     codegen.generate_code(&target, &urcl_llvm_backend::CodegenOptions {
         use_global: args.use_global,
         float_type: args.float,
         native_addr: args.native_addr,
     });
-    codegen.dump();
+
+    if args.emit_ir { codegen.dump(); }
     codegen.optimize(&target, opt);
-    codegen.dump_opt();
+    if args.emit_ir { codegen.dump_opt(); }
+
     codegen.write_obj(
         &target,
         if args.emit_assembly {

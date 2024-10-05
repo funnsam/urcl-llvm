@@ -86,13 +86,17 @@ impl<'a> Codegen<'a> {
         let inst_bb = (0..=self.program.instructions.len())
             .map(|i| self.context.append_basic_block(main, &format!("inst_{i}")))
             .collect::<Vec<basic_block::BasicBlock>>();
-        let imm_to_addr_or_val = |imm: &ast::Immediate| if native_addr {
-            match imm {
-                ast::Immediate::Value(v) => word_t.const_int(*v as u64, false),
-                ast::Immediate::InstLoc(l) => unsafe { inst_bb[*l].get_address() }.unwrap().const_to_int(word_t),
+        let imm_to_addr_or_val = |imm: &ast::Immediate| {
+            if native_addr {
+                match imm {
+                    ast::Immediate::Value(v) => word_t.const_int(*v as u64, false),
+                    ast::Immediate::InstLoc(l) => unsafe { inst_bb[*l].get_address() }
+                        .unwrap()
+                        .const_to_int(word_t),
+                }
+            } else {
+                word_t.const_int(u128::from(imm) as u64, false)
             }
-        } else {
-            word_t.const_int(u128::from(imm) as u64, false)
         };
 
         let registers = (1..=self.program.registers)
@@ -150,14 +154,19 @@ impl<'a> Codegen<'a> {
         self.builder.build_unconditional_branch(inst_bb[0]).unwrap();
 
         for (pc, i) in self.program.instructions.iter().enumerate() {
-            let indr_jump_to = |v: values::IntValue| if !native_addr{
-                self.builder.build_store(big_switch_to, v).unwrap();
-                self.builder
-                    .build_unconditional_branch(big_switch_bb)
-                    .unwrap();
-            } else {
-                let v = self.builder.build_int_to_ptr(v, self.context.ptr_type(0.into()), "target").unwrap();
-                self.builder.build_indirect_branch(v, &inst_bb).unwrap();
+            let indr_jump_to = |v: values::IntValue| {
+                if !native_addr {
+                    self.builder.build_store(big_switch_to, v).unwrap();
+                    self.builder
+                        .build_unconditional_branch(big_switch_bb)
+                        .unwrap();
+                } else {
+                    let v = self
+                        .builder
+                        .build_int_to_ptr(v, self.context.ptr_type(0.into()), "target")
+                        .unwrap();
+                    self.builder.build_indirect_branch(v, &inst_bb).unwrap();
+                }
             };
 
             let get_reg = |r: &_| match r {
