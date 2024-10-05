@@ -12,7 +12,7 @@ pub struct Program {
     pub heap_size: usize,
 
     // body
-    pub instructions: Vec<Instruction>,
+    pub instructions: Vec<(Instruction, core::ops::Range<usize>)>,
     pub dw: Vec<Immediate>,
 }
 
@@ -337,7 +337,7 @@ impl fmt::Display for Program {
         writeln!(f, "// target heap {}", self.heap_size)?;
         writeln!(f, "\n// inst")?;
 
-        for i in self.instructions.iter() {
+        for (i, _) in self.instructions.iter() {
             i.fmt_san(f, self.bits)?;
             writeln!(f)?;
         }

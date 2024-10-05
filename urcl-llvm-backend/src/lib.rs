@@ -1,3 +1,4 @@
+use debug_info::AsDIScope;
 use inkwell::*;
 use urcl_ast as ast;
 
@@ -25,21 +26,52 @@ pub struct Codegen<'a> {
     builder: builder::Builder<'a>,
     module: module::Module<'a>,
 
+    di_builder: debug_info::DebugInfoBuilder<'a>,
+    di_cu: debug_info::DICompileUnit<'a>,
+
     program: &'a ast::Program,
 }
 
 impl<'a> Codegen<'a> {
-    pub fn new(context: &'a CodegenContext, program: &'a ast::Program) -> Self {
+    pub fn new(context: &'a CodegenContext, program: &'a ast::Program, file_name: &'a str) -> Self {
+        let module = context.0.create_module("urcl");
+        module.add_basic_value_flag(
+            "Debug Info Version",
+            inkwell::module::FlagBehavior::Warning,
+            context.0.i32_type().const_int(3, false),
+        );
+
+        let (di_builder, di_cu) = module.create_debug_info_builder(
+            true,
+            debug_info::DWARFSourceLanguage::C,
+            file_name,
+            ".",
+            "urcl-llvm",
+            false,
+            "",
+            0,
+            "",
+            debug_info::DWARFEmissionKind::Full,
+            0,
+            false,
+            false,
+            "",
+            "",
+        );
+
         Self {
             context: &context.0,
             builder: context.0.create_builder(),
-            module: context.0.create_module("urcl"),
+            module,
+
+            di_builder,
+            di_cu,
 
             program,
         }
     }
 
-    pub fn generate_code(&mut self, target: &targets::TargetMachine, options: &CodegenOptions) {
+    pub fn generate_code(&mut self, target: &targets::TargetMachine, options: &CodegenOptions, range_to_line: &dyn Fn(&std::ops::Range<usize>) -> u32) {
         let word_t = self.context.custom_width_int_type(self.program.bits as u32);
         let mach_t = self
             .context
@@ -52,6 +84,19 @@ impl<'a> Codegen<'a> {
             _ => panic!("invalid float bit width"),
         };
         let void = self.context.void_type();
+
+        let di_word_t = self.di_builder.create_basic_type(
+            "word",
+            self.program.bits as u64,
+            0,
+            0,
+        ).unwrap();
+        let di_mach_t = self.di_builder.create_basic_type(
+            "host_word",
+            mach_t.get_bit_width() as u64,
+            0,
+            0,
+        ).unwrap();
 
         let word_1 = word_t.const_int(1, false);
         let word_0 = word_t.const_zero();
@@ -81,6 +126,34 @@ impl<'a> Codegen<'a> {
             Some(module::Linkage::External),
         );
 
+        let di_main_t = self.di_builder.create_subroutine_type(
+            self.di_cu.get_file(),
+            Some(di_mach_t.as_type()),
+            &[],
+            inkwell::debug_info::DIFlagsConstants::PUBLIC,
+        );
+        let di_main = self.di_builder.create_function(
+            self.di_cu.as_debug_info_scope(),
+            "urcl_main",
+            None,
+            self.di_cu.get_file(),
+            0,
+            di_main_t,
+            true,
+            true,
+            0,
+            debug_info::DIFlagsConstants::PUBLIC,
+            false,
+        );
+        main.set_subprogram(di_main);
+
+        let lexical_block = self.di_builder.create_lexical_block(
+            di_main.as_debug_info_scope(),
+            self.di_cu.get_file(),
+            0,
+            0,
+        );
+
         let entry = self.context.append_basic_block(main, "entry");
         self.builder.position_at_end(entry);
         let inst_bb = (0..=self.program.instructions.len())
@@ -99,10 +172,31 @@ impl<'a> Codegen<'a> {
             }
         };
 
+        let loc = self.di_builder.create_debug_location(
+            self.context,
+            0,
+            0,
+            lexical_block.as_debug_info_scope(),
+            None,
+        );
         let registers = (1..=self.program.registers)
             .map(|r| {
-                let r = self.builder.build_alloca(word_t, &format!("r{r}")).unwrap();
+                let name = format!("r{r}");
+                let d = self.di_builder.create_auto_variable(
+                    lexical_block.as_debug_info_scope(),
+                    &name,
+                    self.di_cu.get_file(),
+                    0,
+                    di_word_t.as_type(),
+                    false,
+                    0,
+                    0,
+                );
+
+                let r = self.builder.build_alloca(word_t, &name).unwrap();
                 self.builder.build_store(r, word_0).unwrap();
+                let de = self.di_builder.create_constant_expression(0);
+                self.di_builder.insert_declare_before_instruction(r, Some(d), Some(de), loc, r.as_instruction().unwrap());
                 r
             })
             .collect::<Vec<_>>();
@@ -153,7 +247,16 @@ impl<'a> Codegen<'a> {
 
         self.builder.build_unconditional_branch(inst_bb[0]).unwrap();
 
-        for (pc, i) in self.program.instructions.iter().enumerate() {
+        for (pc, (i, line)) in self.program.instructions.iter().enumerate() {
+            let loc = self.di_builder.create_debug_location(
+                self.context,
+                range_to_line(line),
+                0,
+                lexical_block.as_debug_info_scope(),
+                None,
+            );
+            self.builder.set_current_debug_location(loc);
+
             let indr_jump_to = |v: values::IntValue| {
                 if !native_addr {
                     self.builder.build_store(big_switch_to, v).unwrap();
@@ -530,11 +633,11 @@ impl<'a> Codegen<'a> {
                 },
                 ast::Instruction::Pop(d) => gen!(none d pop),
                 ast::Instruction::Cal(a) => {
-                    if !native_addr {
-                        push(word_t.const_int(pc as u64 + 1, false));
+                    push(if !native_addr {
+                        word_t.const_int(pc as u64 + 1, false)
                     } else {
-                        push(unsafe { inst_bb[pc + 1].get_address() }.unwrap().const_to_int(word_t));
-                    }
+                        unsafe { inst_bb[pc + 1].get_address() }.unwrap().const_to_int(word_t)
+                    });
                     uncond_br(a);
                 },
                 ast::Instruction::Ret() => {
@@ -842,6 +945,8 @@ impl<'a> Codegen<'a> {
                     .collect::<Vec<_>>(),
             )
             .unwrap();
+
+        self.di_builder.finalize();
     }
 
     pub fn optimize(&self, target: &targets::TargetMachine, opt: OptimizationLevel) {

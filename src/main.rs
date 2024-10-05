@@ -58,8 +58,15 @@ fn main() {
     let parser = urcl_frontend::parser::Parser::new(lexer);
     let program = parser.parse_program(args.max_ram).unwrap();
 
+    let mut lines = Vec::new();
+    let mut at = 0;
+    for l in src.split("\n") {
+        lines.push(at);
+        at += l.len() + 1;
+    }
+
     let ctx = urcl_llvm_backend::CodegenContext::new();
-    let mut codegen = urcl_llvm_backend::Codegen::new(&ctx, &program);
+    let mut codegen = urcl_llvm_backend::Codegen::new(&ctx, &program, &args.urcl);
     let target = urcl_llvm_backend::Codegen::get_machine(
         args.triple.as_deref(),
         args.features.as_deref(),
@@ -70,7 +77,7 @@ fn main() {
         use_global: args.use_global,
         float_type: args.float,
         native_addr: args.native_addr,
-    });
+    }, &|r: &core::ops::Range<usize>| (bsearch(r.start, &lines) + 1) as u32);
 
     if args.emit_ir {
         codegen.dump();
@@ -91,4 +98,19 @@ fn main() {
     );
 
     // println!("{program}");
+}
+
+fn bsearch(byte: usize, lines: &[usize]) -> usize {
+    let mut l = 0;
+    let mut r = lines.len();
+    while l < r {
+        let m = (l + r) / 2;
+        if lines[m] > byte {
+            r = m;
+        } else {
+            l = m + 1;
+        }
+    }
+
+    r - 1
 }

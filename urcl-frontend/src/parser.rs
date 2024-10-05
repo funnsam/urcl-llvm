@@ -18,7 +18,7 @@ pub struct Parser<'a> {
     labels: HashMap<&'a str, ast::Immediate>,
     defines: HashMap<&'a str, (RawOperand<'a>, Span)>,
 
-    instructions: Vec<MidInst<'a>>,
+    instructions: Vec<(MidInst<'a>, Span)>,
     dw: Vec<(RawOperand<'a>, Span)>,
 
     errors: Vec<(ParseError, Span)>,
@@ -412,7 +412,7 @@ impl<'a> Parser<'a> {
                     });
                     pending_labels.clear();
                     if let Ok(i) = self.parse_inst(n) {
-                        self.instructions.push(i);
+                        self.instructions.push((i, self.total_span()));
                     }
                 },
                 Ok(lexer::Token::Label(l)) => {
@@ -459,14 +459,14 @@ impl<'a> Parser<'a> {
             heap_size,
 
             instructions: instructions
-                .iter()
-                .map(|i| {
-                    ast::Instruction::construct(
+                .into_iter()
+                .map(|(i, span)| {
+                    (ast::Instruction::construct(
                         i.0,
                         i.1.iter()
                             .map(|i| self.finalize(i, dw_len, heap_size))
                             .collect(),
-                    )
+                    ), span)
                 })
                 .collect(),
             dw: dw
