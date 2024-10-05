@@ -530,7 +530,11 @@ impl<'a> Codegen<'a> {
                 },
                 ast::Instruction::Pop(d) => gen!(none d pop),
                 ast::Instruction::Cal(a) => {
-                    push(word_t.const_int(pc as u64 + 1, false));
+                    if !native_addr {
+                        push(word_t.const_int(pc as u64 + 1, false));
+                    } else {
+                        push(unsafe { inst_bb[pc + 1].get_address() }.unwrap().const_to_int(word_t));
+                    }
                     uncond_br(a);
                 },
                 ast::Instruction::Ret() => {
