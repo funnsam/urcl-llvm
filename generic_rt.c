@@ -70,6 +70,7 @@ int main() {
     setlocale(LC_ALL, "");
     struct timespec start, end;
     clock_gettime(CLOCK_REALTIME, &start);
+    srand(start.tv_nsec);
 
     size_t inst = urcl_main();
 

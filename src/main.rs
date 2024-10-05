@@ -17,14 +17,15 @@ struct Args {
 
     #[arg(long)]
     use_global: bool,
+    #[arg(long, default_value_t = 32, value_parser = float_ty)]
+    float: usize,
+    #[arg(long)]
+    native_addr: bool,
 
     #[arg(short, default_value = "urcl.o")]
     output_file: String,
     #[arg(long)]
     emit_assembly: bool,
-
-    #[arg(long, default_value_t = 32, value_parser = float_ty)]
-    float: usize,
 }
 
 fn float_ty(s: &str) -> Result<usize, String> {
@@ -57,13 +58,11 @@ fn main() {
         args.features.as_deref(),
         opt.clone(),
     );
-    codegen.generate_code(
-        &target,
-        &urcl_llvm_backend::CodegenOptions {
-            use_global: args.use_global,
-            float_type: args.float,
-        },
-    );
+    codegen.generate_code(&target, &urcl_llvm_backend::CodegenOptions {
+        use_global: args.use_global,
+        float_type: args.float,
+        native_addr: args.native_addr,
+    });
     codegen.dump();
     codegen.optimize(&target, opt);
     codegen.dump_opt();

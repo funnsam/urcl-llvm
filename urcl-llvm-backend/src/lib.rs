@@ -17,6 +17,7 @@ impl CodegenContext {
 pub struct CodegenOptions {
     pub use_global: bool,
     pub float_type: usize,
+    pub native_addr: bool,
 }
 
 pub struct Codegen<'a> {
@@ -55,6 +56,8 @@ impl<'a> Codegen<'a> {
         let word_1 = word_t.const_int(1, false);
         let word_0 = word_t.const_zero();
 
+        let native_addr = options.native_addr && self.program.bits as u32 == mach_t.get_bit_width();
+
         let zext_or_trunc = |i: values::IntValue<'a>, t: types::IntType<'a>| {
             use core::cmp::Ordering::*;
             match i.get_type().get_bit_width().cmp(&t.get_bit_width()) {
@@ -80,6 +83,17 @@ impl<'a> Codegen<'a> {
 
         let entry = self.context.append_basic_block(main, "entry");
         self.builder.position_at_end(entry);
+        let inst_bb = (0..=self.program.instructions.len())
+            .map(|i| self.context.append_basic_block(main, &format!("inst_{i}")))
+            .collect::<Vec<basic_block::BasicBlock>>();
+        let imm_to_addr_or_val = |imm: &ast::Immediate| if native_addr {
+            match imm {
+                ast::Immediate::Value(v) => word_t.const_int(*v as u64, false),
+                ast::Immediate::InstLoc(l) => unsafe { inst_bb[*l].get_address() }.unwrap().const_to_int(word_t),
+            }
+        } else {
+            word_t.const_int(u128::from(imm) as u64, false)
+        };
 
         let registers = (1..=self.program.registers)
             .map(|r| {
@@ -105,7 +119,7 @@ impl<'a> Codegen<'a> {
             self.program
                 .dw
                 .iter()
-                .map(|i| word_t.const_int(*i as _, false))
+                .map(|i| imm_to_addr_or_val(i))
                 .collect::<Vec<_>>()
                 .as_slice(),
         );
@@ -122,9 +136,6 @@ impl<'a> Codegen<'a> {
             .build_store(inst_cnt, mach_t.const_zero())
             .unwrap();
 
-        let inst_bb = (0..=self.program.instructions.len())
-            .map(|i| self.context.append_basic_block(main, &format!("inst_{i}")))
-            .collect::<Vec<basic_block::BasicBlock>>();
         let big_switch_bb = self.context.append_basic_block(main, "big_switch_table");
         let big_switch_to = self.builder.build_alloca(word_t, "big_switch_to").unwrap();
 
@@ -139,11 +150,14 @@ impl<'a> Codegen<'a> {
         self.builder.build_unconditional_branch(inst_bb[0]).unwrap();
 
         for (pc, i) in self.program.instructions.iter().enumerate() {
-            let gen_big_switch_table = |v| {
+            let indr_jump_to = |v: values::IntValue| if !native_addr{
                 self.builder.build_store(big_switch_to, v).unwrap();
                 self.builder
                     .build_unconditional_branch(big_switch_bb)
                     .unwrap();
+            } else {
+                let v = self.builder.build_int_to_ptr(v, self.context.ptr_type(0.into()), "target").unwrap();
+                self.builder.build_indirect_branch(v, &inst_bb).unwrap();
             };
 
             let get_reg = |r: &_| match r {
@@ -170,7 +184,7 @@ impl<'a> Codegen<'a> {
                     true
                 },
                 ast::Register::Pc => {
-                    gen_big_switch_table(v);
+                    indr_jump_to(v);
                     false
                 },
                 ast::Register::Sp => {
@@ -181,7 +195,7 @@ impl<'a> Codegen<'a> {
 
             let get_any = |v: &_| match v {
                 ast::Any::Register(r) => get_reg(r),
-                ast::Any::Immediate(i) => word_t.const_int(i.0 as u64, false),
+                ast::Any::Immediate(i) => imm_to_addr_or_val(i),
             };
 
             let ram_gep = |a| unsafe {
@@ -212,7 +226,7 @@ impl<'a> Codegen<'a> {
             let cond_br = |c, d: &_| match d {
                 ast::Any::Immediate(d) => {
                     self.builder
-                        .build_conditional_branch(c, inst_bb[d.0 as usize], inst_bb[pc + 1])
+                        .build_conditional_branch(c, inst_bb[usize::from(d)], inst_bb[pc + 1])
                         .unwrap();
                 },
                 ast::Any::Register(d) => {
@@ -221,17 +235,17 @@ impl<'a> Codegen<'a> {
                         .build_conditional_branch(c, e, inst_bb[pc + 1])
                         .unwrap();
                     self.builder.position_at_end(e);
-                    gen_big_switch_table(get_reg(d));
+                    indr_jump_to(get_reg(d));
                 },
             };
 
             let uncond_br = |d: &_| match d {
                 ast::Any::Immediate(d) => {
                     self.builder
-                        .build_unconditional_branch(inst_bb[d.0 as usize])
+                        .build_unconditional_branch(inst_bb[usize::from(d)])
                         .unwrap();
                 },
-                ast::Any::Register(d) => gen_big_switch_table(get_reg(d)),
+                ast::Any::Register(d) => indr_jump_to(get_reg(d)),
             };
 
             self.builder.position_at_end(inst_bb[pc]);
@@ -281,7 +295,7 @@ impl<'a> Codegen<'a> {
                 let float_it = self.context.custom_width_int_type(options.float_type as _);
                 let i = zext_or_trunc(i, float_it);
                 self.builder
-                    .build_bitcast(i, float_t, "bitw_itof")
+                    .build_bit_cast(i, float_t, "bitw_itof")
                     .unwrap()
                     .into_float_value()
             };
@@ -290,7 +304,7 @@ impl<'a> Codegen<'a> {
                 let float_it = self.context.custom_width_int_type(options.float_type as _);
                 let i = self
                     .builder
-                    .build_bitcast(f, float_it, "bitw_ftoi")
+                    .build_bit_cast(f, float_it, "bitw_ftoi")
                     .unwrap()
                     .into_int_value();
 
@@ -511,7 +525,7 @@ impl<'a> Codegen<'a> {
                     uncond_br(a);
                 },
                 ast::Instruction::Ret() => {
-                    gen_big_switch_table(pop());
+                    indr_jump_to(pop());
                 },
                 ast::Instruction::Hlt() => ret(),
                 ast::Instruction::Cpy(a, b) => {
@@ -840,7 +854,11 @@ impl<'a> Codegen<'a> {
             .write_bitcode_to_path(std::path::Path::new("urcl.opt.bc"));
     }
 
-    pub fn get_machine(triple: Option<&str>, features: Option<&str>, opt: OptimizationLevel) -> targets::TargetMachine {
+    pub fn get_machine(
+        triple: Option<&str>,
+        features: Option<&str>,
+        opt: OptimizationLevel,
+    ) -> targets::TargetMachine {
         targets::Target::initialize_all(&targets::InitializationConfig::default());
 
         let triple = triple.map_or_else(

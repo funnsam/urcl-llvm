@@ -8,13 +8,13 @@ test: tests/core tests/basic1 tests/basic2 tests/special_regs tests/complex
 		./$$f; \
 	done
 
-tests/runtime.o:
+tests/runtime.o: tests/runtime.c
 	$(CC) tests/runtime.c -c -o tests/runtime.o $(CC_FLAGS)
 
-generic_rt.o:
+generic_rt.o: generic_rt.c
 	$(CC) generic_rt.c -c -o generic_rt.o $(CC_FLAGS)
 
-urclos_rt.o:
+urclos_rt.o: urclos_rt.c
 	$(CC) urclos_rt.c -c -o urclos_rt.o $(CC_FLAGS)
 
 %.o: %.urcl

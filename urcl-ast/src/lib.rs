@@ -13,7 +13,7 @@ pub struct Program {
 
     // body
     pub instructions: Vec<Instruction>,
-    pub dw: Vec<u128>,
+    pub dw: Vec<Immediate>,
 }
 
 macro_rules! instr {
@@ -164,7 +164,10 @@ pub enum Register {
 }
 
 #[derive(Clone)]
-pub struct Immediate(pub u128);
+pub enum Immediate {
+    Value(u128),
+    InstLoc(usize),
+}
 
 #[derive(Clone, strum::EnumTryAs)]
 pub enum Any {
@@ -183,7 +186,30 @@ impl fmt::Debug for Register {
 }
 
 impl fmt::Debug for Immediate {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "{}", self.0 as i128) }
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Value(v) => v.fmt(f),
+            Self::InstLoc(l) => l.fmt(f),
+        }
+    }
+}
+
+impl From<&Immediate> for usize {
+    fn from(v: &Immediate) -> Self {
+        match v {
+            Immediate::Value(v) => *v as _,
+            Immediate::InstLoc(l) => *l,
+        }
+    }
+}
+
+impl From<&Immediate> for u128 {
+    fn from(v: &Immediate) -> Self {
+        match v {
+            Immediate::Value(v) => *v,
+            Immediate::InstLoc(l) => *l as _,
+        }
+    }
 }
 
 impl fmt::Debug for Any {
@@ -318,7 +344,7 @@ impl fmt::Display for Program {
 
         writeln!(f, "\n// dw")?;
         for w in self.dw.iter() {
-            writeln!(f, "dw {}", *w as i128)?;
+            writeln!(f, "{w:?}")?;
         }
 
         Ok(())
