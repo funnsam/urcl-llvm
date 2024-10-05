@@ -72,9 +72,13 @@ fn main() {
         native_addr: args.native_addr,
     });
 
-    if args.emit_ir { codegen.dump(); }
+    if args.emit_ir {
+        codegen.dump();
+    }
     codegen.optimize(&target, opt);
-    if args.emit_ir { codegen.dump_opt(); }
+    if args.emit_ir {
+        codegen.dump_opt();
+    }
 
     codegen.write_obj(
         &target,
