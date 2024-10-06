@@ -18,7 +18,7 @@ urclos_rt.o: urclos_rt.c
 	$(CC) urclos_rt.c -c -o urclos_rt.o $(CC_FLAGS)
 
 %.o: %.urcl
-	cargo r -r -- $< -O3 -o $@
+	cargo r -r -- $< -O0 -o $@ --emit-ir
 
 tests/%: tests/runtime.o tests/%.o
 	$(LD) $^ -o $@ $(LD_FLAGS)
@@ -31,6 +31,9 @@ urclos: urclos_rt.o urcl-os/urclos3.o
 
 clean:
 	- find . -name *.o -delete
-	- tests/core tests/basic1 tests/basic2 tests/special_regs tests/complex benchmarks/mandelbrot urclos
+	- rm tests/core tests/basic1 tests/basic2 tests/special_regs tests/complex benchmarks/mandelbrot urclos
 
-.PHONY: test clean
+clean_tests:
+	- rm tests/core tests/basic1 tests/basic2 tests/special_regs tests/complex tests/*.o
+
+.PHONY: test clean clean_tests

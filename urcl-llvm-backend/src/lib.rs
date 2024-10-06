@@ -98,6 +98,16 @@ impl<'a> Codegen<'a> {
             0,
         ).unwrap();
 
+        let ram_size = self.program.min_stack + self.program.heap_size + self.program.dw.len();
+        let ram_t = word_t.array_type(ram_size as _);
+
+        let di_ram_t = self.di_builder.create_array_type(
+            di_word_t.as_type(),
+            self.program.bits as u64 * ram_size as u64,
+            0,
+            &[0..ram_size as i64],
+        );
+
         let word_1 = word_t.const_int(1, false);
         let word_0 = word_t.const_zero();
 
@@ -195,15 +205,21 @@ impl<'a> Codegen<'a> {
 
                 let r = self.builder.build_alloca(word_t, &name).unwrap();
                 let s = self.builder.build_store(r, word_0).unwrap();
-                let de = self.di_builder.create_constant_expression(0);
-                self.di_builder.insert_declare_before_instruction(r, Some(d), Some(de), loc, s);
+                self.di_builder.insert_declare_before_instruction(r, Some(d), None, loc, s);
                 r
             })
             .collect::<Vec<_>>();
 
-        let ram_size = self.program.min_stack + self.program.heap_size + self.program.dw.len();
-        let ram_t = word_t.array_type(ram_size as _);
-
+        let di_ram = self.di_builder.create_auto_variable(
+            lexical_block.as_debug_info_scope(),
+            "ram",
+            self.di_cu.get_file(),
+            0,
+            di_ram_t.as_type(),
+            false,
+            0,
+            0,
+        );
         let ram = if options.use_global {
             let g = self.module.add_global(ram_t, None, "ram");
             g.set_externally_initialized(false);
@@ -221,13 +237,25 @@ impl<'a> Codegen<'a> {
                 .collect::<Vec<_>>()
                 .as_slice(),
         );
-        self.builder.build_store(ram, ram_t.const_zero()).unwrap();
+        let s = self.builder.build_store(ram, ram_t.const_zero()).unwrap();
         self.builder.build_store(ram, dw).unwrap();
+        self.di_builder.insert_declare_before_instruction(ram, Some(di_ram), None, loc, s);
 
         let stack_ptr = self.builder.build_alloca(word_t, "sp").unwrap();
-        self.builder
+        let s = self.builder
             .build_store(stack_ptr, word_t.const_int(ram_size as _, false))
             .unwrap();
+        let d = self.di_builder.create_auto_variable(
+            lexical_block.as_debug_info_scope(),
+            "sp",
+            self.di_cu.get_file(),
+            0,
+            di_word_t.as_type(),
+            false,
+            0,
+            0,
+        );
+        self.di_builder.insert_declare_before_instruction(stack_ptr, Some(d), None, loc, s);
 
         let inst_cnt = self.builder.build_alloca(mach_t, "inst_cnt").unwrap();
         self.builder
@@ -287,7 +315,7 @@ impl<'a> Codegen<'a> {
                     .into_int_value(),
             };
 
-            let set_reg = |r: &_, v| match r {
+            let set_reg = |r: &_, v: values::IntValue| match r {
                 ast::Register::General(0) => true,
                 ast::Register::General(g) => {
                     self.builder
@@ -1017,7 +1045,7 @@ impl<'a> Codegen<'a> {
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
             .status()
-            .map_or("-17", |_| "");
+            .map_or_else(|_| format!("-{}", support::get_llvm_version().0), |_| "".to_string());
 
         let mut proc = std::process::Command::new("sh");
         let proc = proc.arg("-c").arg(format!(
