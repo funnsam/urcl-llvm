@@ -88,13 +88,13 @@ impl<'a> Codegen<'a> {
         let di_word_t = self.di_builder.create_basic_type(
             "word",
             self.program.bits as u64,
-            0,
+            7,
             0,
         ).unwrap();
         let di_mach_t = self.di_builder.create_basic_type(
             "host_word",
             mach_t.get_bit_width() as u64,
-            0,
+            7,
             0,
         ).unwrap();
 
@@ -194,9 +194,9 @@ impl<'a> Codegen<'a> {
                 );
 
                 let r = self.builder.build_alloca(word_t, &name).unwrap();
-                self.builder.build_store(r, word_0).unwrap();
+                let s = self.builder.build_store(r, word_0).unwrap();
                 let de = self.di_builder.create_constant_expression(0);
-                self.di_builder.insert_declare_before_instruction(r, Some(d), Some(de), loc, r.as_instruction().unwrap());
+                self.di_builder.insert_declare_before_instruction(r, Some(d), Some(de), loc, s);
                 r
             })
             .collect::<Vec<_>>();

@@ -18,7 +18,7 @@ urclos_rt.o: urclos_rt.c
 	$(CC) urclos_rt.c -c -o urclos_rt.o $(CC_FLAGS)
 
 %.o: %.urcl
-	urcl-llvm $< -O3 -o $@
+	cargo r -r -- $< -O3 -o $@
 
 tests/%: tests/runtime.o tests/%.o
 	$(LD) $^ -o $@ $(LD_FLAGS)
