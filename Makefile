@@ -30,6 +30,7 @@ urclos: urclos_rt.o urcl-os/urclos3.o
 	$(LD) $^ -o $@ $(LD_FLAGS)
 
 clean:
-	- rm *.o
+	- find . -name *.o -delete
+	- tests/core tests/basic1 tests/basic2 tests/special_regs tests/complex benchmarks/mandelbrot urclos
 
 .PHONY: test clean
