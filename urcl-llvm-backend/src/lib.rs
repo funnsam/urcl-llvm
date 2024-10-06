@@ -863,9 +863,10 @@ impl<'a> Codegen<'a> {
                         .unwrap()
                         .get_declaration(&self.module, &[word_t.into()])
                         .unwrap();
+                    let fals = self.context.custom_width_int_type(1).const_zero();
 
                     self.builder
-                        .build_call(abs, &[a.into(), word_0.into()], "abs")
+                        .build_call(abs, &[a.into(), fals.into()], "abs")
                         .unwrap()
                         .try_as_basic_value()
                         .unwrap_left()
