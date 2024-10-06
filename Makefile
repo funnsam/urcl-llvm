@@ -18,7 +18,7 @@ urclos_rt.o: urclos_rt.c
 	$(CC) urclos_rt.c -c -o urclos_rt.o $(CC_FLAGS)
 
 %.o: %.urcl
-	cargo r -r -- $< -O0 -o $@ --emit-ir
+	cargo r -r -- $< -O3 -o $@ --emit-ir --native-addr
 
 tests/%: tests/runtime.o tests/%.o
 	$(LD) $^ -o $@ $(LD_FLAGS)
