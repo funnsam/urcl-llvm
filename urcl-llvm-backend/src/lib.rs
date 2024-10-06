@@ -19,6 +19,7 @@ pub struct CodegenOptions {
     pub use_global: bool,
     pub float_type: usize,
     pub native_addr: bool,
+    pub bounds_safety: bool,
 }
 
 pub struct Codegen<'a> {
@@ -110,6 +111,7 @@ impl<'a> Codegen<'a> {
 
         let word_1 = word_t.const_int(1, false);
         let word_0 = word_t.const_zero();
+        let ram_size_const = word_t.const_int(ram_size as u64, false);
 
         let native_addr = options.native_addr && self.program.bits as u32 == mach_t.get_bit_width();
 
@@ -135,6 +137,11 @@ impl<'a> Codegen<'a> {
             word_t.fn_type(&[mach_t.into()], false),
             Some(module::Linkage::External),
         );
+        let ram_check_fail = options.bounds_safety.then(|| self.module.add_function(
+            "memory_oob",
+            void.fn_type(&[mach_t.into()], false),
+            Some(module::Linkage::External),
+        ));
 
         let di_main_t = self.di_builder.create_subroutine_type(
             self.di_cu.get_file(),
@@ -243,7 +250,7 @@ impl<'a> Codegen<'a> {
 
         let stack_ptr = self.builder.build_alloca(word_t, "sp").unwrap();
         let s = self.builder
-            .build_store(stack_ptr, word_t.const_int(ram_size as _, false))
+            .build_store(stack_ptr, ram_size_const)
             .unwrap();
         let d = self.di_builder.create_auto_variable(
             lexical_block.as_debug_info_scope(),
@@ -264,6 +271,9 @@ impl<'a> Codegen<'a> {
 
         let big_switch_bb = self.context.append_basic_block(main, "big_switch_table");
         let big_switch_to = self.builder.build_alloca(word_t, "big_switch_to").unwrap();
+
+        let ram_check_fail_bb = self.context.append_basic_block(main, "ram_check_fail");
+        let ram_check_fail_addr = self.builder.build_alloca(word_t, "ram_check_fail_addr").unwrap();
 
         let ret = || {
             let inst_cnt_v = self
@@ -339,6 +349,14 @@ impl<'a> Codegen<'a> {
             };
 
             let ram_gep = |a| unsafe {
+                if options.bounds_safety {
+                    let ok = self.builder.build_int_compare(IntPredicate::ULT, a, ram_size_const, "ram_check").unwrap();
+                    let after = self.context.append_basic_block(main, "ram_check_ok");
+                    self.builder.build_store(ram_check_fail_addr, a).unwrap();
+                    self.builder.build_conditional_branch(ok, after, ram_check_fail_bb).unwrap();
+                    self.builder.position_at_end(after);
+                }
+
                 let a = if mach_t.get_bit_width() > word_t.get_bit_width() {
                     self.builder
                         .build_int_z_extend(a, mach_t, "ram_gep_zext")
@@ -973,6 +991,13 @@ impl<'a> Codegen<'a> {
                     .collect::<Vec<_>>(),
             )
             .unwrap();
+
+        self.builder.position_at_end(ram_check_fail_bb);
+        if options.bounds_safety {
+            let a = self.builder.build_load(word_t, ram_check_fail_addr, "fail_addr").unwrap();
+            self.builder.build_call(ram_check_fail.unwrap(), &[zext_or_trunc(a.try_into().unwrap(), mach_t).into()], "").unwrap();
+        }
+        ret();
 
         self.di_builder.finalize();
     }

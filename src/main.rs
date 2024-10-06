@@ -26,6 +26,9 @@ struct Args {
     /// Use native addresses to jump indirectly (can change program behavior)
     #[arg(long)]
     native_addr: bool,
+    /// Enforce bounds safety on RAM access
+    #[arg(long)]
+    bounds_safety: bool,
 
     #[arg(short, default_value = "urcl.o")]
     output_file: String,
@@ -77,6 +80,7 @@ fn main() {
         use_global: args.use_global,
         float_type: args.float,
         native_addr: args.native_addr,
+        bounds_safety: args.bounds_safety,
     }, &|r: &core::ops::Range<usize>| (bsearch(r.start, &lines) + 1) as u32);
 
     if args.emit_ir {

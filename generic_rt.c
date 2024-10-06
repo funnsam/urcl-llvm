@@ -66,6 +66,10 @@ void urcl_out(size_t port, size_t data) {
     }
 }
 
+void memory_oob(size_t addr) {
+    printf("\n\x1b[1;31mE:\x1b[0m out of bounds memory address 0x%lx was indexed\n", addr);
+}
+
 int main() {
     setlocale(LC_ALL, "");
     struct timespec start, end;
