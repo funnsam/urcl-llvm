@@ -1,7 +1,3 @@
-#![feature(iterator_try_collect)]
-
-use urcl_ast as ast;
-
 pub mod lexer;
 pub mod parser;
 

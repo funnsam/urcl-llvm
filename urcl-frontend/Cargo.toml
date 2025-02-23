@@ -4,5 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+dashu = { version = "0.4.2", features = ["num-traits"] }
+logos = "0.15.0"
+num-traits = "0.2.19"
 strum = { version = "0.26.2", features = ["derive"] }
 urcl-ast = { path = "../urcl-ast" }
