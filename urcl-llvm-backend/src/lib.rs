@@ -1,9 +1,7 @@
-use debug_info::AsDIScope;
-use inkwell::*;
+use inkwell::{debug_info::AsDIScope, *};
 use urcl_ast as ast;
 
-pub use inkwell::OptimizationLevel;
-pub use targets::FileType;
+pub use inkwell::{targets::FileType, OptimizationLevel};
 
 pub struct CodegenContext(context::Context);
 
@@ -99,8 +97,8 @@ impl<'a> Codegen<'a> {
             0,
         ).unwrap();
 
-        let ram_size = self.program.min_stack + self.program.heap_size + self.program.dw.len();
-        let ram_t = word_t.array_type(ram_size as u32);
+        let ram_size = self.program.min_stack + self.program.heap_size + self.program.dw.len() as u64;
+        let ram_t = word_t.array_type(ram_size);
 
         let di_ram_t = self.di_builder.create_array_type(
             di_word_t.as_type(),
@@ -179,13 +177,14 @@ impl<'a> Codegen<'a> {
         let imm_to_addr_or_val = |imm: &ast::Immediate| {
             if native_addr {
                 match imm {
-                    ast::Immediate::Value(v) => word_t.const_int(*v as u64, false),
+                    // TODO: const int w/ bits > 64
+                    ast::Immediate::Value(v) => word_t.const_int(v.try_into().unwrap(), false),
                     ast::Immediate::InstLoc(l) => unsafe { inst_bb[*l].get_address() }
                         .unwrap()
                         .const_to_int(word_t),
                 }
             } else {
-                word_t.const_int(u128::from(imm) as u64, false)
+                word_t.const_int(imm.try_into().unwrap(), false)
             }
         };
 
@@ -384,7 +383,7 @@ impl<'a> Codegen<'a> {
             let cond_br = |c, d: &_| match d {
                 ast::Any::Immediate(d) => {
                     self.builder
-                        .build_conditional_branch(c, inst_bb[usize::from(d)], inst_bb[pc + 1])
+                        .build_conditional_branch(c, inst_bb[usize::try_from(d).unwrap()], inst_bb[pc + 1])
                         .unwrap();
                 },
                 ast::Any::Register(d) => {
@@ -400,7 +399,7 @@ impl<'a> Codegen<'a> {
             let uncond_br = |d: &_| match d {
                 ast::Any::Immediate(d) => {
                     self.builder
-                        .build_unconditional_branch(inst_bb[usize::from(d)])
+                        .build_unconditional_branch(inst_bb[usize::try_from(d).unwrap()])
                         .unwrap();
                 },
                 ast::Any::Register(d) => indr_jump_to(get_reg(d)),
@@ -1065,13 +1064,16 @@ impl<'a> Codegen<'a> {
     }
 
     fn get_passes(lv: usize) -> String {
-        let mut suffix = std::process::Command::new("opt");
-        let suffix = suffix
+        let major = support::get_llvm_version().0;
+        let suffix = format!("-{major}");
+
+        let mut cmd = std::process::Command::new(format!("opt{suffix}"));
+        let suffix = cmd
             .arg("--version")
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
             .status()
-            .map_or_else(|_| format!("-{}", support::get_llvm_version().0), |_| "".to_string());
+            .map_or_else(|_| "".to_string(), |_| suffix);
 
         let mut proc = std::process::Command::new("sh");
         let proc = proc.arg("-c").arg(format!(

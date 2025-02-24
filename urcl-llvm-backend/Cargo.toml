@@ -4,5 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-inkwell = { version = "0.5.0", features = ["llvm17-0-prefer-dynamic"] }
+dashu = { version = "0.4.2", default-features = false }
+inkwell = { path = "../inkwell", features = ["llvm17-0-prefer-dynamic"] }
 urcl-ast = { path = "../urcl-ast" }

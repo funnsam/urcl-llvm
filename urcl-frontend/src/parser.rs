@@ -2,7 +2,7 @@ use std::{collections::HashMap, str::FromStr};
 
 use crate::*;
 
-use dashu::{ubig, Integer, Natural};
+use dashu::Integer;
 use num_traits::ToPrimitive;
 use urcl_ast::*;
 
@@ -14,10 +14,10 @@ pub struct Parser<'a> {
     peeked: Option<lexer::LexResult<'a>>,
     start: usize,
 
-    bits: Option<usize>,
-    registers: Option<Natural>,
-    min_stack: Option<Natural>,
-    min_heap: Option<Natural>,
+    bits: Option<u32>,
+    registers: Option<u16>,
+    min_stack: Option<u64>,
+    min_heap: Option<u64>,
 
     labels: HashMap<&'a str, Immediate>,
     defines: HashMap<&'a str, (RawOperand<'a>, Span)>,
@@ -98,12 +98,20 @@ impl<'a> Parser<'a> {
     fn span(&self) -> Span { self.lex.span() }
     fn total_span(&self) -> Span { self.start..self.lex.span().end }
 
+    fn error(&mut self, err: ParseError) {
+        self.errors.push((err, self.span()));
+    }
+
+    fn total_span_error(&mut self, err: ParseError) {
+        self.errors.push((err, self.total_span()));
+    }
+
     fn wait_nl(&mut self) {
         while let Some(t) = self.next_token() {
             match t {
                 Ok(lexer::Token::Newline) => break,
                 Ok(_) => {},
-                Err(e) => self.errors.push((ParseError::LexError(e), self.span())),
+                Err(e) => self.error(ParseError::LexError(e)),
             }
         }
     }
@@ -199,8 +207,7 @@ impl<'a> Parser<'a> {
     ) {
         if matches!(self.peek_next(), Some(Ok(lexer::Token::Newline)) | None) {
             *errors = true;
-            self.errors
-                .push((ParseError::UnexpectedNewline, self.span()));
+            self.error(ParseError::UnexpectedNewline);
         }
 
         let opr = self.parse_operand(&i.operands[nth]);
@@ -238,54 +245,71 @@ impl<'a> Parser<'a> {
             self.expect_nl();
             (!errors).then_some((n, oprs, self.total_span())).ok_or(())
         } else {
-            self.errors.push((ParseError::UnknownInst, self.span()));
+            self.error(ParseError::UnknownInst);
             self.wait_nl();
             Err(())
         }
     }
 
-    fn parse_usize(&mut self) -> usize {
+    fn parse_int(&mut self) -> Integer {
         self.next_token()
             .and_then(|t| t.ok())
             .and_then(|t| t.try_as_integer())
             .unwrap_or_else(|| {
-                self.errors.push((ParseError::ExpectedInt, self.span()));
+                self.error(ParseError::ExpectedInt);
                 Integer::ZERO
-            })
-        .to_usize()
-            .unwrap_or_else(|| {
-                self.errors.push((ParseError::InvalidValue, self.span()));
-                0
             })
     }
 
-    fn parse_nat(&mut self) -> Natural {
-        self.next_token()
-            .and_then(|t| t.ok())
-            .and_then(|t| t.try_as_integer())
-            .unwrap_or_else(|| {
-                self.errors.push((ParseError::ExpectedInt, self.span()));
-                Integer::ZERO
-            })
-        .try_into()
-            .unwrap_or_else(|_| {
-                self.errors.push((ParseError::InvalidValue, self.span()));
-                Natural::ZERO
-            })
+    fn opt_unwrap_or_err_default<T: Default>(&mut self, opt: Option<T>, err: ParseError) -> T {
+        opt.unwrap_or_else(|| {
+            self.error(err);
+            T::default()
+        })
+    }
+
+    fn parse_u64(&mut self) -> u64 {
+        let int = self.parse_int().to_u64();
+        self.opt_unwrap_or_err_default(int, ParseError::InvalidValue)
+    }
+
+    fn parse_u32(&mut self) -> u32 {
+        let int = self.parse_int().to_u32();
+        self.opt_unwrap_or_err_default(int, ParseError::InvalidValue)
+    }
+
+    fn parse_u16(&mut self) -> u16 {
+        let int = self.parse_int().to_u16();
+        self.opt_unwrap_or_err_default(int, ParseError::InvalidValue)
     }
 
     fn expect_nl(&mut self) {
         if !matches!(self.peek_next(), Some(Ok(lexer::Token::Newline)) | None) {
-            self.errors.push((ParseError::ExpectedNewline, self.span()));
+            self.error(ParseError::ExpectedNewline);
             self.wait_nl();
         }
     }
 
     fn parse_add_dw(&mut self) {
+        let mut in_sq_bracket = false;
+
         while let Some(t) = self.next_token() {
             match t {
-                Ok(lexer::Token::SqBrStart | lexer::Token::SqBrEnd) => {}, // yes, we ignore it
-                Ok(lexer::Token::Newline) => break,
+                Ok(lexer::Token::SqBrStart) => {
+                    if in_sq_bracket {
+                        self.error(ParseError::UnexpectedToken);
+                    }
+
+                    in_sq_bracket = true;
+                },
+                Ok(lexer::Token::SqBrEnd) => {
+                    if !in_sq_bracket {
+                        self.error(ParseError::UnexpectedToken);
+                    }
+
+                    in_sq_bracket = false;
+                },
+                Ok(lexer::Token::Newline) => if in_sq_bracket { break },
                 Ok(lexer::Token::String(s)) => {
                     for c in s.iter() {
                         self.dw.push((
@@ -298,14 +322,14 @@ impl<'a> Parser<'a> {
                     Ok(w) => self.dw.push(w),
                     Err(e) => self.errors.push(e),
                 },
-                Err(e) => self.errors.push((ParseError::LexError(e), self.span())),
+                Err(e) => self.error(ParseError::LexError(e)),
             }
         }
     }
 
     pub fn parse_program(
         mut self,
-        max_ram: Natural,
+        max_ram: u64,
     ) -> Result<Program, Vec<(ParseError, Span)>> {
         let mut pending_labels: Vec<&str> = Vec::new();
 
@@ -323,11 +347,10 @@ impl<'a> Parser<'a> {
                     }
 
                     if self.bits.is_some() {
-                        self.errors
-                            .push((ParseError::ItemRedefined, self.total_span()));
+                        self.total_span_error(ParseError::ItemRedefined);
                         self.wait_nl();
                     } else {
-                        self.bits = Some(self.parse_usize());
+                        self.bits = Some(self.parse_u32());
                         self.expect_nl();
                     }
                 },
@@ -335,11 +358,10 @@ impl<'a> Parser<'a> {
                     if n.eq_ignore_ascii_case("minreg") =>
                 {
                     if self.registers.is_some() {
-                        self.errors
-                            .push((ParseError::ItemRedefined, self.total_span()));
+                        self.total_span_error(ParseError::ItemRedefined);
                         self.wait_nl();
                     } else {
-                        self.registers = Some(self.parse_nat());
+                        self.registers = Some(self.parse_u16());
                         self.expect_nl();
                     }
                 },
@@ -347,11 +369,10 @@ impl<'a> Parser<'a> {
                     if n.eq_ignore_ascii_case("minstack") =>
                 {
                     if self.min_stack.is_some() {
-                        self.errors
-                            .push((ParseError::ItemRedefined, self.total_span()));
+                        self.total_span_error(ParseError::ItemRedefined);
                         self.wait_nl();
                     } else {
-                        self.min_stack = Some(self.parse_nat());
+                        self.min_stack = Some(self.parse_u64());
                         self.expect_nl();
                     }
                 },
@@ -359,11 +380,10 @@ impl<'a> Parser<'a> {
                     if n.eq_ignore_ascii_case("minheap") =>
                 {
                     if self.min_heap.is_some() {
-                        self.errors
-                            .push((ParseError::ItemRedefined, self.total_span()));
+                        self.total_span_error(ParseError::ItemRedefined);
                         self.wait_nl();
                     } else {
-                        self.min_heap = Some(self.parse_nat());
+                        self.min_heap = Some(self.parse_u64());
                         self.expect_nl();
                     }
                 },
@@ -384,15 +404,15 @@ impl<'a> Parser<'a> {
                             self.expect_nl();
                         },
                         Some(Ok(_)) => {
-                            self.errors.push((ParseError::UnexpectedToken, self.span()));
+                            self.error(ParseError::UnexpectedToken);
                             self.wait_nl();
                         },
                         Some(Err(e)) => {
-                            self.errors.push((ParseError::LexError(e), self.span()));
+                            self.error(ParseError::LexError(e));
                             self.wait_nl();
                         },
                         None => {
-                            self.errors.push((ParseError::UnexpectedEof, self.span()));
+                            self.error(ParseError::UnexpectedEof);
                         },
                     }
                 },
@@ -402,8 +422,7 @@ impl<'a> Parser<'a> {
                 },
                 Ok(lexer::Token::Macro(_)) => {
                     self.wait_nl();
-                    self.errors
-                        .push((ParseError::UnknownMacro, self.total_span()));
+                    self.error(ParseError::UnknownMacro);
                 },
                 Ok(lexer::Token::Name(n)) => {
                     pending_labels.iter().for_each(|i| {
@@ -417,8 +436,7 @@ impl<'a> Parser<'a> {
                 },
                 Ok(lexer::Token::Label(l)) => {
                     if self.labels.contains_key(l) || pending_labels.contains(&l) {
-                        self.errors
-                            .push((ParseError::ItemRedefined, self.total_span()));
+                        self.error(ParseError::ItemRedefined);
                         self.wait_nl();
                     } else {
                         pending_labels.push(l);
@@ -426,8 +444,8 @@ impl<'a> Parser<'a> {
                     }
                 },
                 Ok(lexer::Token::Newline) => {},
-                Ok(_) => self.errors.push((ParseError::UnexpectedToken, self.span())),
-                Err(e) => self.errors.push((ParseError::LexError(e), self.span())),
+                Ok(_) => self.error(ParseError::UnexpectedToken),
+                Err(e) => self.error(ParseError::LexError(e)),
             }
         }
 
@@ -436,19 +454,8 @@ impl<'a> Parser<'a> {
                 .insert(i, Immediate::InstLoc(self.instructions.len()));
         });
 
-        fn saturating_sub(a: Natural, b: Natural) -> Natural {
-            if a <= b {
-                Natural::ZERO
-            } else {
-                a - b
-            }
-        }
-
         let heap_size = self.min_heap().max(
-            saturating_sub(
-                saturating_sub(max_ram, self.min_stack()),
-                self.dw.len().into(),
-            )
+            max_ram.saturating_sub(self.min_stack()).saturating_sub(self.dw.len() as _)
         );
 
         let instructions = core::mem::take(&mut self.instructions);
@@ -461,7 +468,7 @@ impl<'a> Parser<'a> {
             min_stack: self.min_stack(),
             min_heap: self.min_heap(),
 
-            heap_size: heap_size.clone(),
+            heap_size,
 
             instructions: instructions
                 .into_iter()
@@ -469,7 +476,7 @@ impl<'a> Parser<'a> {
                     (Instruction::construct(
                         i.0,
                         i.1.iter()
-                            .map(|i| self.finalize(i, dw_len, &heap_size))
+                            .map(|i| self.finalize(i, dw_len, heap_size))
                             .collect(),
                     ), span)
                 })
@@ -477,7 +484,7 @@ impl<'a> Parser<'a> {
             dw: dw
                 .iter()
                 .map(|i| {
-                    self.finalize(i, dw_len, &heap_size)
+                    self.finalize(i, dw_len, heap_size)
                         .try_as_immediate()
                         .unwrap()
                 })
@@ -491,12 +498,12 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn bits(&self) -> usize { self.bits.unwrap_or(8) }
-    fn registers(&self) -> Natural { self.registers.as_ref().unwrap_or(&ubig!(8)).clone() }
-    fn min_stack(&self) -> Natural { self.min_stack.as_ref().unwrap_or(&ubig!(8)).clone() }
-    fn min_heap(&self) -> Natural { self.min_heap.as_ref().unwrap_or(&ubig!(16)).clone() }
+    fn bits(&self) -> u32 { self.bits.unwrap_or(8) }
+    fn registers(&self) -> u16 { self.registers.unwrap_or(8) }
+    fn min_stack(&self) -> u64 { self.min_stack.unwrap_or(8) }
+    fn min_heap(&self) -> u64 { self.min_heap.unwrap_or(16) }
 
-    fn finalize(&mut self, op: &(RawOperand, Span), dw_len: u128, heap_size: &Natural) -> Any {
+    fn finalize(&mut self, op: &(RawOperand, Span), dw_len: u128, heap_size: u64) -> Any {
         match &op.0 {
             RawOperand::Register(r) => Any::Register(r.clone()),
             RawOperand::Immediate(i) => Any::Immediate(i.clone()),
@@ -514,7 +521,7 @@ impl<'a> Parser<'a> {
                 Any::Immediate(Immediate::Value(self.min_heap().into()))
             },
             RawOperand::MacroImm(MacroImm::Heap) => {
-                Any::Immediate(Immediate::Value(heap_size.clone().into()))
+                Any::Immediate(Immediate::Value(heap_size.into()))
             },
             RawOperand::MacroImm(MacroImm::Max) => {
                 Any::Immediate(Immediate::Value((Integer::ONE << self.bits().to_usize().unwrap()) - 1))

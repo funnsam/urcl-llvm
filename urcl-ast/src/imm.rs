@@ -34,3 +34,25 @@ impl<'a> From<&'a Immediate> for Cow<'a, Integer> {
         }
     }
 }
+
+impl<'a> TryFrom<&'a Immediate> for usize {
+    type Error = <usize as TryFrom<&'a Integer>>::Error;
+
+    fn try_from(value: &'a Immediate) -> Result<Self, Self::Error> {
+        match value {
+            Immediate::Value(v) => v.try_into(),
+            Immediate::InstLoc(l) => Ok(*l),
+        }
+    }
+}
+
+impl<'a> TryFrom<&'a Immediate> for u64 {
+    type Error = <u64 as TryFrom<&'a Integer>>::Error;
+
+    fn try_from(value: &'a Immediate) -> Result<Self, Self::Error> {
+        match value {
+            Immediate::Value(v) => v.try_into(),
+            Immediate::InstLoc(l) => Ok(*l as _),
+        }
+    }
+}

@@ -1,0 +1,13 @@
+bits 512
+
+mov r1 1
+mov r2 0
+
+.loop
+add r1 r1 r2
+sub r2 r1 r2
+out %numb r2
+out %text '\n'
+// bge .loop 999999999 r2
+jmp .loop
+hlt

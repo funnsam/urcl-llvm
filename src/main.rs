@@ -15,7 +15,7 @@ struct Args {
     opt: u32,
 
     #[arg(long, default_value_t = 0)]
-    max_ram: usize,
+    max_ram: u64,
 
     /// Use a global array for RAM instead of stack allocating
     #[arg(long)]
@@ -57,7 +57,7 @@ fn main() {
     let opt: urcl_llvm_backend::OptimizationLevel = unsafe { core::mem::transmute(args.opt) };
 
     let src = std::fs::read_to_string(&args.urcl).unwrap();
-    let lexer = urcl_frontend::lexer::Lexer::new(&src, args.float);
+    let lexer = urcl_frontend::lexer::Lexer::new(&src);
     let parser = urcl_frontend::parser::Parser::new(lexer);
     let program = parser.parse_program(args.max_ram).unwrap();
 

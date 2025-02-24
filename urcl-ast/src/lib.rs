@@ -15,13 +15,13 @@ mod reg;
 
 #[derive(Debug, Clone)]
 pub struct Program {
-    pub bits: usize,
-    pub registers: usize,
+    pub bits: u32,
+    pub registers: u16,
 
-    pub min_stack: usize,
-    pub min_heap: usize,
+    pub min_stack: u64,
+    pub min_heap: u64,
 
-    pub heap_size: usize,
+    pub heap_size: u64,
 
     // body
     pub instructions: Vec<(Instruction, core::ops::Range<usize>)>,

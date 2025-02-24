@@ -150,7 +150,7 @@ impl fmt::Display for Instruction {
 }
 
 impl Instruction {
-    pub(crate) fn fmt_san(&self, f: &mut fmt::Formatter, bits: usize) -> fmt::Result {
+    pub(crate) fn fmt_san(&self, f: &mut fmt::Formatter, bits: u32) -> fmt::Result {
         let j = format!("{self:?}");
         let i = InstructionDiscriminants::from(self).to_string();
         let k = j.get((i.len() + 1)..(j.len() - 1)).unwrap_or("");
@@ -159,7 +159,7 @@ impl Instruction {
             .map(|i| match i.chars().nth(0) {
                 Some(c) if c.is_ascii_digit() => {
                     let v = i.parse::<Natural>().unwrap();
-                    (((Natural::ONE << bits) - 1_u8) & v).to_string()
+                    (((Natural::ONE << bits as usize) - 1_u8) & v).to_string()
                 },
                 _ => i.to_string(),
             })
