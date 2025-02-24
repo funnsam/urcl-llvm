@@ -3,6 +3,30 @@
 version = 4
 
 [[package]]
+name = "aho-corasick"
+version = "0.6.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "81ce3d38065e618af2d7b77e10c5ad9a069859b4be3c2250f674af3840d9c8a5"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
+name = "aho-corasick"
+version = "1.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8e60d3430d3a69478ad0993f19238d2df97c507009a52b3c10addcd7f6bcb916"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
+name = "alloc-traits"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6b2d54853319fd101b8dd81de382bcbf3e03410a64d8928bbee85a3e7dcde483"
+
+[[package]]
 name = "anstream"
 version = "0.6.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -232,15 +256,53 @@ checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 [[package]]
 name = "inkwell"
 version = "0.5.0"
+dependencies = [
+ "either",
+ "inkwell_internals 0.10.0",
+ "libc",
+ "llvm-sys 100.2.4",
+ "llvm-sys 110.0.4",
+ "llvm-sys 120.3.2",
+ "llvm-sys 130.1.2",
+ "llvm-sys 140.1.3",
+ "llvm-sys 150.2.1",
+ "llvm-sys 160.2.1",
+ "llvm-sys 170.2.0",
+ "llvm-sys 181.2.0",
+ "llvm-sys 40.4.0",
+ "llvm-sys 50.4.0",
+ "llvm-sys 60.6.0",
+ "llvm-sys 70.4.0",
+ "llvm-sys 80.3.1",
+ "llvm-sys 90.2.2",
+ "once_cell",
+ "regex 1.11.1",
+ "serde",
+ "static-alloc",
+ "thiserror 1.0.64",
+]
+
+[[package]]
+name = "inkwell"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "40fb405537710d51f6bdbc8471365ddd4cd6d3a3c3ad6e0c8291691031ba94b2"
 dependencies = [
  "either",
- "inkwell_internals",
+ "inkwell_internals 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc",
- "llvm-sys",
+ "llvm-sys 170.2.0",
  "once_cell",
- "thiserror",
+ "thiserror 1.0.64",
+]
+
+[[package]]
+name = "inkwell_internals"
+version = "0.10.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -262,6 +324,12 @@ checksum = "7943c866cc5cd64cbc25b2e01621d07fa8eb2a1a23160ee81ce38704e97b8ecf"
 
 [[package]]
 name = "lazy_static"
+version = "0.2.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "76f033c7ad61445c5b347c7382dd1237847eb1bce590fe50365dcb33d546be73"
+
+[[package]]
+name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
@@ -274,16 +342,199 @@ checksum = "561d97a539a36e26a9a5fad1ea11a3039a67714694aaa379433e580854bc3dc5"
 
 [[package]]
 name = "llvm-sys"
+version = "40.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a7ea137d31b623679e01ae7028ee4395968b95ad9746ee21d141c714389a3425"
+dependencies = [
+ "cc",
+ "lazy_static 0.2.11",
+ "libc",
+ "regex 0.2.11",
+ "semver 0.6.0",
+]
+
+[[package]]
+name = "llvm-sys"
+version = "50.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aefd08f35f9e3fa6b72d142bc557a251647d6bd4fae6b6ca37acb84cb54ee895"
+dependencies = [
+ "cc",
+ "lazy_static 0.2.11",
+ "libc",
+ "regex 0.2.11",
+ "semver 0.6.0",
+]
+
+[[package]]
+name = "llvm-sys"
+version = "60.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e8a7a739699b6940d9f2cf805eda689affee6df4255dc769c2f4ccc22aeec54f"
+dependencies = [
+ "cc",
+ "lazy_static 1.5.0",
+ "libc",
+ "regex 0.2.11",
+ "semver 0.9.0",
+]
+
+[[package]]
+name = "llvm-sys"
+version = "70.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "673300127ec17878e6f7fee4e851ba6fd36b08c26b2d6258732d699d1b3e3fcd"
+dependencies = [
+ "cc",
+ "lazy_static 1.5.0",
+ "libc",
+ "regex 1.11.1",
+ "semver 0.9.0",
+]
+
+[[package]]
+name = "llvm-sys"
+version = "80.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5ca576fbfdcdfc5bf210f8e8ceda959d11b86173e663a67f29f810f647b8d41a"
+dependencies = [
+ "cc",
+ "lazy_static 1.5.0",
+ "libc",
+ "regex 1.11.1",
+ "semver 0.9.0",
+]
+
+[[package]]
+name = "llvm-sys"
+version = "90.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1036b0d57b7e7c673778e7c5391250a3f0021c0e4f8b988ddb6fe5a9217379b9"
+dependencies = [
+ "cc",
+ "lazy_static 1.5.0",
+ "libc",
+ "regex 1.11.1",
+ "semver 0.9.0",
+]
+
+[[package]]
+name = "llvm-sys"
+version = "100.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "72251a917884f75079ba3bd20fe41aa0c89d40392ac3de6a8b1063ee92475b34"
+dependencies = [
+ "cc",
+ "lazy_static 1.5.0",
+ "libc",
+ "regex 1.11.1",
+ "semver 0.9.0",
+]
+
+[[package]]
+name = "llvm-sys"
+version = "110.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7abad6f4c44960941ebd7d26b97719f9b8dba379f971b48de919d03462527c3d"
+dependencies = [
+ "cc",
+ "lazy_static 1.5.0",
+ "libc",
+ "regex 1.11.1",
+ "semver 0.11.0",
+]
+
+[[package]]
+name = "llvm-sys"
+version = "120.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "624f2692f436769c7eb85a13eeca3f6fb9705a4b2bd0473ac9577c90f19e21ef"
+dependencies = [
+ "cc",
+ "lazy_static 1.5.0",
+ "libc",
+ "regex 1.11.1",
+ "semver 0.11.0",
+]
+
+[[package]]
+name = "llvm-sys"
+version = "130.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c20142c91fc4bde4036edbaf0d112f79667831d612efbaabe862ab9748fdd67c"
+dependencies = [
+ "cc",
+ "lazy_static 1.5.0",
+ "libc",
+ "regex 1.11.1",
+ "semver 0.11.0",
+]
+
+[[package]]
+name = "llvm-sys"
+version = "140.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e3dc78e9857c0231ec11e3bdccf63870493fdc7d0570b0ea7d50bf5df0cb1a0c"
+dependencies = [
+ "cc",
+ "lazy_static 1.5.0",
+ "libc",
+ "regex 1.11.1",
+ "semver 1.0.23",
+]
+
+[[package]]
+name = "llvm-sys"
+version = "150.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aa55828745895d37233756307ded95a235b058aeb89cd12717ec7c3912089ee9"
+dependencies = [
+ "cc",
+ "lazy_static 1.5.0",
+ "libc",
+ "regex 1.11.1",
+ "semver 1.0.23",
+]
+
+[[package]]
+name = "llvm-sys"
+version = "160.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e73861901245d32e1c3d8b35b639cf100859b4cd0c9da56fe0273040acbb3ea4"
+dependencies = [
+ "cc",
+ "lazy_static 1.5.0",
+ "libc",
+ "regex 1.11.1",
+ "semver 1.0.23",
+]
+
+[[package]]
+name = "llvm-sys"
 version = "170.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff1ee92492ae76bb6e24495ce15e311ba13ffb58c0140d89ac9910b92477cec8"
 dependencies = [
  "anyhow",
  "cc",
- "lazy_static",
+ "lazy_static 1.5.0",
  "libc",
  "regex-lite",
- "semver",
+ "semver 1.0.23",
+]
+
+[[package]]
+name = "llvm-sys"
+version = "181.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d320f9d2723c97d4b78f9190a61ed25cc7cfbe456668c08e6e7dd8e50ceb8500"
+dependencies = [
+ "anyhow",
+ "cc",
+ "lazy_static 1.5.0",
+ "libc",
+ "regex-lite",
+ "semver 1.0.23",
 ]
 
 [[package]]
@@ -303,10 +554,10 @@ checksum = "189bbfd0b61330abea797e5e9276408f2edbe4f822d7ad08685d67419aafb34e"
 dependencies = [
  "beef",
  "fnv",
- "lazy_static",
+ "lazy_static 1.5.0",
  "proc-macro2",
  "quote",
- "regex-syntax",
+ "regex-syntax 0.8.5",
  "rustc_version",
  "syn",
 ]
@@ -319,6 +570,12 @@ checksum = "ebfe8e1a19049ddbfccbd14ac834b215e11b85b90bab0c2dba7c7b92fb5d5cba"
 dependencies = [
  "logos-codegen",
 ]
+
+[[package]]
+name = "memchr"
+version = "2.7.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "78ca9ab1a0babb1e7d5695e3530886289c18cf2f87ec19a575a0abdce112e3a3"
 
 [[package]]
 name = "num-modular"
@@ -357,6 +614,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
+name = "pest"
+version = "2.7.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8b7cafe60d6cf8e62e1b9b2ea516a089c008945bb5a275416789e7db0bc199dc"
+dependencies = [
+ "memchr",
+ "thiserror 2.0.11",
+ "ucd-trie",
+]
+
+[[package]]
 name = "proc-macro2"
 version = "1.0.86"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -375,10 +643,55 @@ dependencies = [
 ]
 
 [[package]]
+name = "regex"
+version = "0.2.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9329abc99e39129fcceabd24cf5d85b4671ef7c29c50e972bc5afe32438ec384"
+dependencies = [
+ "aho-corasick 0.6.10",
+ "memchr",
+ "regex-syntax 0.5.6",
+ "thread_local",
+ "utf8-ranges",
+]
+
+[[package]]
+name = "regex"
+version = "1.11.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b544ef1b4eac5dc2db33ea63606ae9ffcfac26c1416a2806ae0bf5f56b201191"
+dependencies = [
+ "aho-corasick 1.1.3",
+ "memchr",
+ "regex-automata",
+ "regex-syntax 0.8.5",
+]
+
+[[package]]
+name = "regex-automata"
+version = "0.4.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "809e8dc61f6de73b46c85f4c96486310fe304c434cfa43669d7b40f711150908"
+dependencies = [
+ "aho-corasick 1.1.3",
+ "memchr",
+ "regex-syntax 0.8.5",
+]
+
+[[package]]
 name = "regex-lite"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "53a49587ad06b26609c52e423de037e7f57f20d53535d66e08c695f347df952a"
+
+[[package]]
+name = "regex-syntax"
+version = "0.5.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7d707a4fa2637f2dca2ef9fd02225ec7661fe01a53623c1e6515b6916511f7a7"
+dependencies = [
+ "ucd-util",
+]
 
 [[package]]
 name = "regex-syntax"
@@ -392,7 +705,7 @@ version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cfcb3a22ef46e85b45de6ee7e79d063319ebb6594faafcf1c225ea92ab6e9b92"
 dependencies = [
- "semver",
+ "semver 1.0.23",
 ]
 
 [[package]]
@@ -403,15 +716,86 @@ checksum = "955d28af4278de8121b7ebeb796b6a45735dc01436d898801014aced2773a3d6"
 
 [[package]]
 name = "semver"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7a3186ec9e65071a2095434b1f5bb24838d4e8e130f584c790f6033c79943537"
+dependencies = [
+ "semver-parser 0.7.0",
+]
+
+[[package]]
+name = "semver"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d7eb9ef2c18661902cc47e535f9bc51b78acd254da71d375c2f6720d9a40403"
+dependencies = [
+ "semver-parser 0.7.0",
+]
+
+[[package]]
+name = "semver"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f301af10236f6df4160f7c3f04eec6dbc70ace82d23326abad5edee88801c6b6"
+dependencies = [
+ "semver-parser 0.10.3",
+]
+
+[[package]]
+name = "semver"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "61697e0a1c7e512e84a621326239844a24d8207b4669b41bc18b32ea5cbf988b"
+
+[[package]]
+name = "semver-parser"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "388a1df253eca08550bef6c72392cfe7c30914bf41df5269b68cbd6ff8f570a3"
+
+[[package]]
+name = "semver-parser"
+version = "0.10.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9900206b54a3527fdc7b8a938bffd94a568bac4f4aa8113b209df75a09c0dec2"
+dependencies = [
+ "pest",
+]
+
+[[package]]
+name = "serde"
+version = "1.0.218"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e8dfc9d19bdbf6d17e22319da49161d5d0108e4188e8b680aef6299eed22df60"
+dependencies = [
+ "serde_derive",
+]
+
+[[package]]
+name = "serde_derive"
+version = "1.0.218"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f09503e191f4e797cb8aac08e9a4a4695c5edf6a2e70e376d961ddd5c969f82b"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "shlex"
 version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
+
+[[package]]
+name = "static-alloc"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8b2975e035ce16539eecee08d7c6e5626ca26f299c6e90af343b302c6dd2e61e"
+dependencies = [
+ "alloc-traits",
+]
 
 [[package]]
 name = "static_assertions"
@@ -449,9 +833,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "2.0.79"
+version = "2.0.87"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89132cd0bf050864e1d38dc3bbc07a0eb8e7530af26344d3d2bbbef83499f590"
+checksum = "25aa4ce346d03a6dcd68dd8b4010bcb74e54e62c90c573f394c46eae99aba32d"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -464,7 +848,16 @@ version = "1.0.64"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d50af8abc119fb8bb6dbabcfa89656f46f84aa0ac7688088608076ad2b459a84"
 dependencies = [
- "thiserror-impl",
+ "thiserror-impl 1.0.64",
+]
+
+[[package]]
+name = "thiserror"
+version = "2.0.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d452f284b73e6d76dd36758a0c8684b1d5be31f92b89d07fd5822175732206fc"
+dependencies = [
+ "thiserror-impl 2.0.11",
 ]
 
 [[package]]
@@ -477,6 +870,38 @@ dependencies = [
  "quote",
  "syn",
 ]
+
+[[package]]
+name = "thiserror-impl"
+version = "2.0.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "26afc1baea8a989337eeb52b6e72a039780ce45c3edfcc9c5b9d112feeb173c2"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "thread_local"
+version = "0.3.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c6b53e329000edc2b34dbe8545fd20e55a333362d0a321909685a19bd28c3f1b"
+dependencies = [
+ "lazy_static 1.5.0",
+]
+
+[[package]]
+name = "ucd-trie"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2896d95c02a80c6d6a5d6e953d479f5ddf2dfdb6a244441010e373ac0fb88971"
+
+[[package]]
+name = "ucd-util"
+version = "0.1.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "abd2fc5d32b590614af8b0a20d837f32eca055edd0bbead59a9cfe80858be003"
 
 [[package]]
 name = "unicode-ident"
@@ -516,9 +941,15 @@ dependencies = [
 name = "urcl-llvm-backend"
 version = "0.1.0"
 dependencies = [
- "inkwell",
+ "inkwell 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "urcl-ast",
 ]
+
+[[package]]
+name = "utf8-ranges"
+version = "1.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7fcfc827f90e53a02eaef5e535ee14266c1d569214c6aa70133a624d8a3164ba"
 
 [[package]]
 name = "utf8parse"

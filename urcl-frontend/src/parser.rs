@@ -2,7 +2,7 @@ use std::{collections::HashMap, str::FromStr};
 
 use crate::*;
 
-use dashu::{ibig, Integer, Natural};
+use dashu::{ubig, Integer, Natural};
 use num_traits::ToPrimitive;
 use urcl_ast::*;
 
@@ -172,7 +172,8 @@ impl<'a> Parser<'a> {
                 OperandKind::Immediate | OperandKind::Any,
             ) => Ok((
                 RawOperand::Immediate(Immediate::InstLoc(
-                    self.instructions.len() + r as usize,
+                    self.instructions.len()
+                        + r.to_usize().ok_or((ParseError::InvalidRelative, self.span()))?,
                 )),
                 self.span(),
             )),
@@ -180,10 +181,7 @@ impl<'a> Parser<'a> {
                 Some(Ok(lexer::Token::Port(p))),
                 OperandKind::Immediate | OperandKind::Any,
             ) => Ok((
-                RawOperand::Immediate(Immediate::Value(
-                    Port::from_str(p).map_err(|_| (ParseError::UnknownPort, self.span()))?
-                        as _,
-                )),
+                RawOperand::Immediate(Immediate::Value((p as usize).into())),
                 self.span(),
             )),
             (Some(Ok(_)), _) => Err((ParseError::InvalidOperand(ok), self.span())),
@@ -218,7 +216,7 @@ impl<'a> Parser<'a> {
     fn parse_inst(&mut self, n: &'a str) -> Result<MidInst<'a>, ()> {
         if let Some(i) = Instruction::properties(n) {
             let mut oprs =
-                vec![(RawOperand::Immediate(Immediate::Value(0)), 0..0); i.operands.len()];
+                vec![(RawOperand::Immediate(Immediate::Value(Integer::ZERO)), 0..0); i.operands.len()];
             let mut errors = false;
 
             if let (true, Some(j)) = (self.port_v2, i.port_v2) {
@@ -246,6 +244,36 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn parse_usize(&mut self) -> usize {
+        self.next_token()
+            .and_then(|t| t.ok())
+            .and_then(|t| t.try_as_integer())
+            .unwrap_or_else(|| {
+                self.errors.push((ParseError::ExpectedInt, self.span()));
+                Integer::ZERO
+            })
+        .to_usize()
+            .unwrap_or_else(|| {
+                self.errors.push((ParseError::InvalidValue, self.span()));
+                0
+            })
+    }
+
+    fn parse_nat(&mut self) -> Natural {
+        self.next_token()
+            .and_then(|t| t.ok())
+            .and_then(|t| t.try_as_integer())
+            .unwrap_or_else(|| {
+                self.errors.push((ParseError::ExpectedInt, self.span()));
+                Integer::ZERO
+            })
+        .try_into()
+            .unwrap_or_else(|_| {
+                self.errors.push((ParseError::InvalidValue, self.span()));
+                Natural::ZERO
+            })
+    }
+
     fn expect_nl(&mut self) {
         if !matches!(self.peek_next(), Some(Ok(lexer::Token::Newline)) | None) {
             self.errors.push((ParseError::ExpectedNewline, self.span()));
@@ -261,7 +289,7 @@ impl<'a> Parser<'a> {
                 Ok(lexer::Token::String(s)) => {
                     for c in s.iter() {
                         self.dw.push((
-                            RawOperand::Immediate(Immediate::Value(*c as _)),
+                            RawOperand::Immediate(Immediate::Value((*c).into())),
                             self.span(),
                         ));
                     }
@@ -277,7 +305,7 @@ impl<'a> Parser<'a> {
 
     pub fn parse_program(
         mut self,
-        max_ram: usize,
+        max_ram: Natural,
     ) -> Result<Program, Vec<(ParseError, Span)>> {
         let mut pending_labels: Vec<&str> = Vec::new();
 
@@ -299,15 +327,7 @@ impl<'a> Parser<'a> {
                             .push((ParseError::ItemRedefined, self.total_span()));
                         self.wait_nl();
                     } else {
-                        self.bits = Some(
-                            self.next_token()
-                                .and_then(|t| t.ok())
-                                .and_then(|t| t.try_as_integer())
-                                .unwrap_or_else(|| {
-                                    self.errors.push((ParseError::ExpectedInt, self.span()));
-                                    0
-                                }),
-                        );
+                        self.bits = Some(self.parse_usize());
                         self.expect_nl();
                     }
                 },
@@ -319,15 +339,7 @@ impl<'a> Parser<'a> {
                             .push((ParseError::ItemRedefined, self.total_span()));
                         self.wait_nl();
                     } else {
-                        self.registers = Some(
-                            self.next_token()
-                                .and_then(|t| t.ok())
-                                .and_then(|t| t.try_as_int())
-                                .unwrap_or_else(|| {
-                                    self.errors.push((ParseError::ExpectedInt, self.span()));
-                                    0
-                                }) as _,
-                        );
+                        self.registers = Some(self.parse_nat());
                         self.expect_nl();
                     }
                 },
@@ -339,15 +351,7 @@ impl<'a> Parser<'a> {
                             .push((ParseError::ItemRedefined, self.total_span()));
                         self.wait_nl();
                     } else {
-                        self.min_stack = Some(
-                            self.next_token()
-                                .and_then(|t| t.ok())
-                                .and_then(|t| t.try_as_int())
-                                .unwrap_or_else(|| {
-                                    self.errors.push((ParseError::ExpectedInt, self.span()));
-                                    0
-                                }) as _,
-                        );
+                        self.min_stack = Some(self.parse_nat());
                         self.expect_nl();
                     }
                 },
@@ -359,22 +363,14 @@ impl<'a> Parser<'a> {
                             .push((ParseError::ItemRedefined, self.total_span()));
                         self.wait_nl();
                     } else {
-                        self.min_heap = Some(
-                            self.next_token()
-                                .and_then(|t| t.ok())
-                                .and_then(|t| t.try_as_int())
-                                .unwrap_or_else(|| {
-                                    self.errors.push((ParseError::ExpectedInt, self.span()));
-                                    0
-                                }) as _,
-                        );
+                        self.min_heap = Some(self.parse_nat());
                         self.expect_nl();
                     }
                 },
                 Ok(lexer::Token::Name(n)) if n.eq_ignore_ascii_case("dw") => {
                     pending_labels.iter().for_each(|i| {
                         self.labels
-                            .insert(i, Immediate::Value(self.dw.len() as u128));
+                            .insert(i, Immediate::Value(self.dw.len().into()));
                     });
                     pending_labels.clear();
                     self.parse_add_dw();
@@ -440,10 +436,19 @@ impl<'a> Parser<'a> {
                 .insert(i, Immediate::InstLoc(self.instructions.len()));
         });
 
-        let heap_size = self.min_heap.unwrap().max(
-            max_ram
-                .saturating_sub(self.min_stack.unwrap())
-                .saturating_sub(self.dw.len()),
+        fn saturating_sub(a: Natural, b: Natural) -> Natural {
+            if a <= b {
+                Natural::ZERO
+            } else {
+                a - b
+            }
+        }
+
+        let heap_size = self.min_heap().max(
+            saturating_sub(
+                saturating_sub(max_ram, self.min_stack()),
+                self.dw.len().into(),
+            )
         );
 
         let instructions = core::mem::take(&mut self.instructions);
@@ -456,7 +461,7 @@ impl<'a> Parser<'a> {
             min_stack: self.min_stack(),
             min_heap: self.min_heap(),
 
-            heap_size,
+            heap_size: heap_size.clone(),
 
             instructions: instructions
                 .into_iter()
@@ -464,7 +469,7 @@ impl<'a> Parser<'a> {
                     (Instruction::construct(
                         i.0,
                         i.1.iter()
-                            .map(|i| self.finalize(i, dw_len, heap_size))
+                            .map(|i| self.finalize(i, dw_len, &heap_size))
                             .collect(),
                     ), span)
                 })
@@ -472,7 +477,7 @@ impl<'a> Parser<'a> {
             dw: dw
                 .iter()
                 .map(|i| {
-                    self.finalize(i, dw_len, heap_size)
+                    self.finalize(i, dw_len, &heap_size)
                         .try_as_immediate()
                         .unwrap()
                 })
@@ -487,29 +492,29 @@ impl<'a> Parser<'a> {
     }
 
     fn bits(&self) -> usize { self.bits.unwrap_or(8) }
-    fn registers(&self) -> Natural { self.registers.as_ref().unwrap_or(&ibig!(8)).clone() }
-    fn min_stack(&self) -> Natural { self.min_stack.as_ref().unwrap_or(&ibig!(8)).clone() }
-    fn min_heap(&self) -> Natural { self.min_heap.as_ref().unwrap_or(&ibig!(16)).clone() }
+    fn registers(&self) -> Natural { self.registers.as_ref().unwrap_or(&ubig!(8)).clone() }
+    fn min_stack(&self) -> Natural { self.min_stack.as_ref().unwrap_or(&ubig!(8)).clone() }
+    fn min_heap(&self) -> Natural { self.min_heap.as_ref().unwrap_or(&ubig!(16)).clone() }
 
-    fn finalize(&mut self, op: &(RawOperand, Span), dw_len: u128, heap_size: usize) -> Any {
+    fn finalize(&mut self, op: &(RawOperand, Span), dw_len: u128, heap_size: &Natural) -> Any {
         match &op.0 {
             RawOperand::Register(r) => Any::Register(r.clone()),
             RawOperand::Immediate(i) => Any::Immediate(i.clone()),
             RawOperand::Heap(h) => Any::Immediate(Immediate::Value(dw_len + h)),
             RawOperand::MacroImm(MacroImm::Bits) => {
-                Any::Immediate(Immediate::Value(self.bits()))
+                Any::Immediate(Immediate::Value(self.bits().into()))
             },
             RawOperand::MacroImm(MacroImm::MinReg) => {
-                Any::Immediate(Immediate::Value(self.registers()))
+                Any::Immediate(Immediate::Value(self.registers().into()))
             },
             RawOperand::MacroImm(MacroImm::MinStack) => {
-                Any::Immediate(Immediate::Value(self.min_stack()))
+                Any::Immediate(Immediate::Value(self.min_stack().into()))
             },
             RawOperand::MacroImm(MacroImm::MinHeap) => {
-                Any::Immediate(Immediate::Value(self.min_heap()))
+                Any::Immediate(Immediate::Value(self.min_heap().into()))
             },
             RawOperand::MacroImm(MacroImm::Heap) => {
-                Any::Immediate(Immediate::Value(heap_size.into()))
+                Any::Immediate(Immediate::Value(heap_size.clone().into()))
             },
             RawOperand::MacroImm(MacroImm::Max) => {
                 Any::Immediate(Immediate::Value((Integer::ONE << self.bits().to_usize().unwrap()) - 1))
@@ -555,4 +560,5 @@ pub enum ParseError {
     UnexpectedNewline,
     InvalidRelative,
     UnknownName,
+    InvalidValue,
 }

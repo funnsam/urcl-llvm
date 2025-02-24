@@ -100,7 +100,7 @@ impl<'a> Codegen<'a> {
         ).unwrap();
 
         let ram_size = self.program.min_stack + self.program.heap_size + self.program.dw.len();
-        let ram_t = word_t.array_type(ram_size as _);
+        let ram_t = word_t.array_type(ram_size as u32);
 
         let di_ram_t = self.di_builder.create_array_type(
             di_word_t.as_type(),

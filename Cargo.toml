@@ -1,5 +1,5 @@
 [workspace]
-members = [ "urcl-ast","urcl-frontend", "urcl-llvm-backend"]
+members = ["inkwell", "urcl-ast","urcl-frontend", "urcl-llvm-backend"]
 
 [package]
 name = "urcl-llvm"

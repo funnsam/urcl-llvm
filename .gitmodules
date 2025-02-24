@@ -1,3 +1,7 @@
+[submodule "inkwell"]
+	path = inkwell
+	url = git@github.com:funnsam/inkwell
+
 [submodule "urcl-os"]
 	path = urcl-os
 	url = git@github.com:funnsam/URCL-OS
