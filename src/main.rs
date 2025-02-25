@@ -36,6 +36,8 @@ struct Args {
     emit_assembly: bool,
     #[arg(long)]
     emit_ir: bool,
+    #[arg(long)]
+    output_target_data: Option<String>,
 }
 
 fn float_ty(s: &str) -> Result<usize, String> {
@@ -101,7 +103,9 @@ fn main() {
         std::path::Path::new(&args.output_file),
     );
 
-    // println!("{program}");
+    if let Some(to) = args.output_target_data {
+        std::fs::write(to, program.bits.to_string()).unwrap();
+    }
 }
 
 fn bsearch(byte: usize, lines: &[usize]) -> usize {

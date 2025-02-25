@@ -1,7 +1,9 @@
-CC_FLAGS=-Wpedantic -Wall -Wextra -std=gnu11 -lrt -O3
-CC=gcc
-LD_FLAGS=-O3
-LD=gcc
+CC_FLAGS = -Wpedantic -Wall -Wextra -std=gnu11 -lrt -O3
+CC = gcc
+LD_FLAGS = -O3
+LD = gcc
+
+temp_bits := $(shell mktemp -u)
 
 test: tests/core tests/basic1 tests/basic2 tests/special_regs tests/complex
 	for f in `echo "$^"`; do \
@@ -11,17 +13,22 @@ test: tests/core tests/basic1 tests/basic2 tests/special_regs tests/complex
 tests/runtime.o: tests/runtime.c
 	$(CC) $^ -c -o $@ $(CC_FLAGS)
 
-generic_rt.o: generic_rt.c
-	$(CC) $^ -c -o $@ $(CC_FLAGS)
+# generic_rt.o: generic_rt.c
+# 	$(CC) $^ -c -o $@ $(CC_FLAGS)
+
+generic_rt_%.o: generic_rt.c
+	$(CC) $^ -c -o $@ $(CC_FLAGS) -DURCL_BITS=$*
 
 urclos_rt.o: urclos_rt.c
 	$(CC) $^ -c -o $@ $(CC_FLAGS)
 
 %.o: %.urcl
-	cargo r -r -- $< -O3 -o $@ --emit-ir --native-addr
+	cargo r -r -- $< -O3 -o $@ --emit-ir --native-addr --output-target-data $(temp_bits)
 
-benchmarks/%: generic_rt.o benchmarks/%.o
-	$(LD) $^ -o $@ $(LD_FLAGS)
+benchmarks/%: benchmarks/%.o
+	$(eval RT_OUT = generic_rt_$(shell cat $(temp_bits)).o)
+	make $(RT_OUT)
+	$(LD) $^ $(RT_OUT) -o $@ $(LD_FLAGS)
 
 examples/%: generic_rt.o examples/%.o
 	$(LD) $^ -o $@ $(LD_FLAGS)

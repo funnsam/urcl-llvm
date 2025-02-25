@@ -71,7 +71,7 @@ impl<'a> Codegen<'a> {
     }
 
     pub fn generate_code(&mut self, target: &targets::TargetMachine, options: &CodegenOptions, range_to_line: &dyn Fn(&std::ops::Range<usize>) -> u32) {
-        let word_t = self.context.custom_width_int_type(self.program.bits as u32);
+        let word_t = self.context.custom_width_int_type(self.program.bits);
         let mach_t = self
             .context
             .ptr_sized_int_type(&target.get_target_data(), None);
@@ -102,16 +102,16 @@ impl<'a> Codegen<'a> {
 
         let di_ram_t = self.di_builder.create_array_type(
             di_word_t.as_type(),
-            self.program.bits as u64 * ram_size as u64,
+            self.program.bits as u64 * ram_size,
             0,
             &[0..ram_size as i64],
         );
 
         let word_1 = word_t.const_int(1, false);
         let word_0 = word_t.const_zero();
-        let ram_size_const = word_t.const_int(ram_size as u64, false);
+        let ram_size_const = word_t.const_int(ram_size, false);
 
-        let native_addr = options.native_addr && self.program.bits as u32 == mach_t.get_bit_width();
+        let native_addr = options.native_addr && self.program.bits == mach_t.get_bit_width();
 
         let zext_or_trunc = |i: values::IntValue<'a>, t: types::IntType<'a>| {
             use core::cmp::Ordering::*;
@@ -135,11 +135,6 @@ impl<'a> Codegen<'a> {
             word_t.fn_type(&[mach_t.into()], false),
             Some(module::Linkage::External),
         );
-        let ram_check_fail = options.bounds_safety.then(|| self.module.add_function(
-            "memory_oob",
-            void.fn_type(&[mach_t.into()], false),
-            Some(module::Linkage::External),
-        ));
 
         let di_main_t = self.di_builder.create_subroutine_type(
             self.di_cu.get_file(),
@@ -294,7 +289,7 @@ impl<'a> Codegen<'a> {
             );
             self.builder.set_current_debug_location(loc);
 
-            let indr_jump_to = |v: values::IntValue| {
+            let indir_jump_to = |v: values::IntValue| {
                 if !native_addr {
                     self.builder.build_store(big_switch_to, v).unwrap();
                     self.builder
@@ -333,7 +328,7 @@ impl<'a> Codegen<'a> {
                     true
                 },
                 ast::Register::Pc => {
-                    indr_jump_to(v);
+                    indir_jump_to(v);
                     false
                 },
                 ast::Register::Sp => {
@@ -387,12 +382,12 @@ impl<'a> Codegen<'a> {
                         .unwrap();
                 },
                 ast::Any::Register(d) => {
-                    let e = self.context.append_basic_block(main, "big_switch_table");
+                    let e = self.context.append_basic_block(main, "indir_jump");
                     self.builder
                         .build_conditional_branch(c, e, inst_bb[pc + 1])
                         .unwrap();
                     self.builder.position_at_end(e);
-                    indr_jump_to(get_reg(d));
+                    indir_jump_to(get_reg(d));
                 },
             };
 
@@ -402,7 +397,7 @@ impl<'a> Codegen<'a> {
                         .build_unconditional_branch(inst_bb[usize::try_from(d).unwrap()])
                         .unwrap();
                 },
-                ast::Any::Register(d) => indr_jump_to(get_reg(d)),
+                ast::Any::Register(d) => indir_jump_to(get_reg(d)),
             };
 
             self.builder.position_at_end(inst_bb[pc]);
@@ -686,7 +681,7 @@ impl<'a> Codegen<'a> {
                     uncond_br(a);
                 },
                 ast::Instruction::Ret() => {
-                    indr_jump_to(pop());
+                    indir_jump_to(pop());
                 },
                 ast::Instruction::Hlt() => ret(),
                 ast::Instruction::Cpy(a, b) => {
@@ -898,7 +893,7 @@ impl<'a> Codegen<'a> {
                     zext_or_trunc(i, word_t)
                 }),
                 ast::Instruction::Umlt(d, a, b) => gen!(2op d a b |a, b| {
-                    let ext_t = self.context.custom_width_int_type(self.program.bits as u32 * 2);
+                    let ext_t = self.context.custom_width_int_type(self.program.bits * 2);
                     let a = self.builder.build_int_z_extend(a, ext_t, "umlt_a_zext").unwrap();
                     let b = self.builder.build_int_z_extend(b, ext_t, "umlt_b_zext").unwrap();
                     let r = self.builder.build_int_mul(a, b, "umlt_mlt").unwrap();
@@ -906,7 +901,7 @@ impl<'a> Codegen<'a> {
                     self.builder.build_int_truncate(s, word_t, "umlt_trunc").unwrap()
                 }),
                 ast::Instruction::SUmlt(d, a, b) => gen!(2op d a b |a, b| {
-                    let ext_t = self.context.custom_width_int_type(self.program.bits as u32 * 2);
+                    let ext_t = self.context.custom_width_int_type(self.program.bits * 2);
                     let a = self.builder.build_int_s_extend(a, ext_t, "sumlt_a_sext").unwrap();
                     let b = self.builder.build_int_s_extend(b, ext_t, "sumlt_b_sext").unwrap();
                     let r = self.builder.build_int_mul(a, b, "sumlt_mlt").unwrap();
@@ -975,27 +970,38 @@ impl<'a> Codegen<'a> {
         self.builder.position_at_end(*inst_bb.last().unwrap());
         ret();
 
-        self.builder.position_at_end(big_switch_bb);
-        let v = self
-            .builder
-            .build_load(word_t, big_switch_to, "get_addr")
-            .unwrap();
-        self.builder
-            .build_switch(
-                v.into_int_value(),
-                *inst_bb.last().unwrap(),
-                &inst_bb
-                    .iter()
-                    .enumerate()
-                    .map(|(i, b)| (word_t.const_int(i as _, false), *b))
-                    .collect::<Vec<_>>(),
-            )
-            .unwrap();
+        if !native_addr {
+            self.builder.position_at_end(big_switch_bb);
+            let v = self
+                .builder
+                .build_load(word_t, big_switch_to, "get_addr")
+                .unwrap();
+            self.builder
+                .build_switch(
+                    v.into_int_value(),
+                    *inst_bb.last().unwrap(),
+                    &inst_bb.iter()
+                        .enumerate()
+                        .map(|(i, b)| (word_t.const_int(i as _, false), *b))
+                        .collect::<Vec<_>>(),
+                )
+                .unwrap();
+        }
 
         self.builder.position_at_end(ram_check_fail_bb);
         if options.bounds_safety {
+            let ram_check_fail = options.bounds_safety.then(|| self.module.add_function(
+                "memory_oob",
+                void.fn_type(&[mach_t.into()], false),
+                Some(module::Linkage::External),
+            ));
+
             let a = self.builder.build_load(word_t, ram_check_fail_addr, "fail_addr").unwrap();
-            self.builder.build_call(ram_check_fail.unwrap(), &[zext_or_trunc(a.try_into().unwrap(), mach_t).into()], "").unwrap();
+            self.builder.build_call(
+                ram_check_fail.unwrap(),
+                &[zext_or_trunc(a.try_into().unwrap(), mach_t).into()],
+                "",
+            ).unwrap();
         }
         ret();
 
