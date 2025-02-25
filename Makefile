@@ -1,5 +1,5 @@
-CC_FLAGS = -Wpedantic -Wall -Wextra -std=gnu11 -lrt -O3
-CC = gcc
+CC_FLAGS = -Wpedantic -Wall -Wextra -std=gnu23 -lrt -O3
+CC = clang
 LD_FLAGS = -O3
 LD = gcc
 
@@ -30,8 +30,10 @@ benchmarks/%: benchmarks/%.o
 	make $(RT_OUT)
 	$(LD) $^ $(RT_OUT) -o $@ $(LD_FLAGS)
 
-examples/%: generic_rt.o examples/%.o
-	$(LD) $^ -o $@ $(LD_FLAGS)
+examples/%: examples/%.o
+	$(eval RT_OUT = generic_rt_$(shell cat $(temp_bits)).o)
+	make $(RT_OUT)
+	$(LD) $^ $(RT_OUT) -o $@ $(LD_FLAGS)
 
 tests/%: tests/runtime.o tests/%.o
 	$(LD) $^ -o $@ $(LD_FLAGS)

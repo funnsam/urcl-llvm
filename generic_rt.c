@@ -4,17 +4,24 @@
 #include <locale.h>
 #include <time.h>
 
-extern size_t urcl_main();
+#define STR(s) #s
+#define EXP_STR(s) STR(s)
+#define CONCAT2(a, b) a b
+#define CONCAT3(a, b, c) a b c
+
+typedef _BitInt(URCL_BITS) urcl_t;
+
+extern urcl_t urcl_main();
 
 union WordAndFloat {
-    size_t w;
+    urcl_t w;
     float f;
 };
 
-size_t urcl_in(size_t port) {
+urcl_t urcl_in(urcl_t port) {
     switch (port) {
         case 40: {
-            return (size_t) rand();
+            return (urcl_t) rand();
         }
         default: {
             printf("\n\x1b[1;33mW:\x1b[0m unknown port %%%lu was read\n", port);
@@ -23,7 +30,7 @@ size_t urcl_in(size_t port) {
     }
 }
 
-void urcl_out(size_t port, size_t data) {
+void urcl_out(urcl_t port, urcl_t data) {
     switch (port) {
         case 1: {
             printf("%lc", (uint32_t) data);
@@ -39,7 +46,7 @@ void urcl_out(size_t port, size_t data) {
         }
         case 2:
         case 25: {
-            printf("%lu", data);
+            printf(CONCAT3("%w", EXP_STR(URCL_BITS), "u"), data);
             break;
         }
         case 24: {
@@ -66,7 +73,7 @@ void urcl_out(size_t port, size_t data) {
     }
 }
 
-void memory_oob(size_t addr) {
+void memory_oob(urcl_t addr) {
     printf("\n\x1b[1;31mE:\x1b[0m out of bounds memory address 0x%lx was indexed\n", addr);
 }
 
@@ -76,7 +83,7 @@ int main() {
     clock_gettime(CLOCK_REALTIME, &start);
     srand(start.tv_nsec);
 
-    size_t inst = urcl_main();
+    urcl_t inst = urcl_main();
 
     clock_gettime(CLOCK_REALTIME, &end);
 

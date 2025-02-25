@@ -71,10 +71,11 @@ impl<'a> Codegen<'a> {
     }
 
     pub fn generate_code(&mut self, target: &targets::TargetMachine, options: &CodegenOptions, range_to_line: &dyn Fn(&std::ops::Range<usize>) -> u32) {
+        let u8_t = self.context.custom_width_int_type(8);
         let word_t = self.context.custom_width_int_type(self.program.bits);
-        let mach_t = self
-            .context
-            .ptr_sized_int_type(&target.get_target_data(), None);
+        let mach_t = self.context.ptr_sized_int_type(&target.get_target_data(), None);
+        let ptr_t = self.context.ptr_type(AddressSpace::default());
+
         let float_t = match options.float_type {
             16 => self.context.f16_type(),
             32 => self.context.f32_type(),
@@ -82,7 +83,7 @@ impl<'a> Codegen<'a> {
             128 => self.context.f128_type(),
             _ => panic!("invalid float bit width"),
         };
-        let void = self.context.void_type();
+        let void_t = self.context.void_type();
 
         let di_word_t = self.di_builder.create_basic_type(
             "word",
@@ -113,6 +114,19 @@ impl<'a> Codegen<'a> {
 
         let native_addr = options.native_addr && self.program.bits == mach_t.get_bit_width();
 
+        let word_t_from_imm = |i: &urcl_ast::Immediate| match i {
+            urcl_ast::Immediate::Value(v) => {
+                let unsigned = word_t.const_int_arbitrary_precision(v.as_sign_words().1);
+
+                if v.sign() == dashu::base::Sign::Negative {
+                    unsigned.const_neg()
+                } else {
+                    unsigned
+                }
+            },
+            urcl_ast::Immediate::InstLoc(l) => word_t.const_int(*l as _, false),
+        };
+
         let zext_or_trunc = |i: values::IntValue<'a>, t: types::IntType<'a>| {
             use core::cmp::Ordering::*;
             match i.get_type().get_bit_width().cmp(&t.get_bit_width()) {
@@ -127,12 +141,12 @@ impl<'a> Codegen<'a> {
             .add_function("urcl_main", mach_t.fn_type(&[], false), None);
         let port_out = self.module.add_function(
             "urcl_out",
-            void.fn_type(&[mach_t.into(); 2], false),
+            void_t.fn_type(&[u8_t.into(), ptr_t.into()], false),
             Some(module::Linkage::External),
         );
         let port_in = self.module.add_function(
             "urcl_in",
-            word_t.fn_type(&[mach_t.into()], false),
+            void_t.fn_type(&[ptr_t.into(), u8_t.into()], false),
             Some(module::Linkage::External),
         );
 
@@ -298,7 +312,7 @@ impl<'a> Codegen<'a> {
                 } else {
                     let v = self
                         .builder
-                        .build_int_to_ptr(v, self.context.ptr_type(0.into()), "target")
+                        .build_int_to_ptr(v, ptr_t, "target")
                         .unwrap();
                     self.builder.build_indirect_branch(v, &inst_bb).unwrap();
                 }
@@ -340,6 +354,20 @@ impl<'a> Codegen<'a> {
             let get_any = |v: &_| match v {
                 ast::Any::Register(r) => get_reg(r),
                 ast::Any::Immediate(i) => imm_to_addr_or_val(i),
+            };
+
+            let val_to_ptr = |v: values::IntValue| {
+                let temp = self.builder.build_alloca(v.get_type(), "temp_val_to_ptr").unwrap();
+                self.builder.build_store(temp, v).unwrap();
+                temp
+            };
+
+            let get_any_ptr = |v: &_| match v {
+                ast::Any::Register(urcl_ast::Register::General(0)) => val_to_ptr(word_1),
+                ast::Any::Register(urcl_ast::Register::General(i)) => registers[*i as usize - 1],
+                ast::Any::Register(urcl_ast::Register::Pc) => val_to_ptr(word_t.const_int(pc as _, false)),
+                ast::Any::Register(urcl_ast::Register::Sp) => stack_ptr,
+                ast::Any::Immediate(i) => val_to_ptr(word_t_from_imm(i)),
             };
 
             let ram_gep = |a| unsafe {
@@ -869,15 +897,9 @@ impl<'a> Codegen<'a> {
                 ast::Instruction::Out(p, v) => {
                     let p = get_any(p);
                     let v = get_any(v);
+
                     self.builder
-                        .build_call(
-                            port_out,
-                            &[
-                                zext_or_trunc(p, mach_t).into(),
-                                zext_or_trunc(v, mach_t).into(),
-                            ],
-                            "out",
-                        )
+                        .build_call(port_out, &[zext_or_trunc(p, u8_t).into(), v.into()], "out")
                         .unwrap();
                     self.builder
                         .build_unconditional_branch(inst_bb[pc + 1])
@@ -885,7 +907,7 @@ impl<'a> Codegen<'a> {
                 },
                 ast::Instruction::In(r, p) => gen!(1op r p |p: values::IntValue<'a>| {
                     let i = self.builder
-                        .build_call(port_in, &[zext_or_trunc(p, mach_t).into()], "in")
+                        .build_call(port_in, &[zext_or_trunc(p, u8_t).into()], "in")
                         .unwrap()
                         .try_as_basic_value()
                         .unwrap_left()
@@ -992,7 +1014,7 @@ impl<'a> Codegen<'a> {
         if options.bounds_safety {
             let ram_check_fail = options.bounds_safety.then(|| self.module.add_function(
                 "memory_oob",
-                void.fn_type(&[mach_t.into()], false),
+                void_t.fn_type(&[mach_t.into()], false),
                 Some(module::Linkage::External),
             ));
 
