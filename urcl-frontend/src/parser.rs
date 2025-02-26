@@ -180,8 +180,9 @@ impl<'a> Parser<'a> {
                 OperandKind::Immediate | OperandKind::Any,
             ) => Ok((
                 RawOperand::Immediate(Immediate::InstLoc(
-                    self.instructions.len()
-                        + r.to_usize().ok_or((ParseError::InvalidRelative, self.span()))?,
+                    (Integer::from(self.instructions.len()) + r)
+                        .to_usize()
+                        .ok_or((ParseError::InvalidRelative, self.span()))?,
                 )),
                 self.span(),
             )),
@@ -309,7 +310,7 @@ impl<'a> Parser<'a> {
 
                     in_sq_bracket = false;
                 },
-                Ok(lexer::Token::Newline) => if in_sq_bracket { break },
+                Ok(lexer::Token::Newline) => if !in_sq_bracket { break },
                 Ok(lexer::Token::String(s)) => {
                     for c in s.iter() {
                         self.dw.push((

@@ -16,8 +16,12 @@ tests/runtime_%.o: tests/runtime.c
 generic_rt_%.o: generic_rt.c
 	$(CC) $^ -c -o $@ $(CC_FLAGS) -DURCL_BITS=$*
 
-# urclos_rt.o: urclos_rt.c
-# 	$(CC) $^ -c -o $@ $(CC_FLAGS)
+urclos_rt.o: urclos_rt.c
+	if [[ "$$(cat $(temp_bits))" != "16" ]]; then \
+		echo assert failed: urclos is expected to be 16 bits; \
+		exit 1; \
+	fi
+	$(CC) $^ -c -o $@ $(CC_FLAGS)
 
 %.o: %.urcl
 	cargo r -r -- $< -O3 -o $@ --emit-ir --native-addr --output-target-data $(temp_bits)
@@ -37,8 +41,8 @@ tests/%: tests/%.o
 	make $(RT_OUT)
 	$(LD) $^ $(RT_OUT) -o $@ $(LD_FLAGS)
 
-# urclos: urclos_rt.o urcl-os/urclos3.o
-# 	$(LD) $^ -o $@ $(LD_FLAGS)
+urclos: urcl-os/urclos3.o urclos_rt.o
+	$(LD) $^ -o $@ $(LD_FLAGS)
 
 clean:
 	- find . -name "*.o" -delete

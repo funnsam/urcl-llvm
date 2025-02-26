@@ -28,83 +28,90 @@
     #define getch getchar
 #endif
 
+typedef uint16_t urcl_t;
 extern size_t urcl_main();
+void urcl_in(urcl_t *ret, uint8_t port);
+void urcl_out(uint8_t port, urcl_t *data);
 
 union WordAndFloat {
     size_t w;
     float f;
 };
 
-uint16_t* fs;
-size_t address = 0;
+urcl_t* fs;
+urcl_t address = 0;
 
-size_t urcl_in(size_t port) {
+void urcl_in(urcl_t *ret, uint8_t port) {
     switch (port) {
         case 1: {
-            return getchar();
+            *ret = getchar();
+            break;
         }
         case 32: {
-            return address;
+            *ret = address;
+            break;
         }
         case 33: {
-            return (size_t) fs[(int) address];
+            *ret = fs[address];
+            break;
         }
         case 40: {
-            return (size_t) rand();
+            *ret = (urcl_t) rand();
+            break;
         }
         default: {
-            printf("\n\x1b[1;33mW:\x1b[0m unknown port %%%lu was read\n", port);
-            return 0;
+            printf("\n\x1b[1;33mW:\x1b[0m unknown port %%%hhu was read\n", port);
+            break;
         }
     }
 }
 
-void urcl_out(size_t port, size_t data) {
+void urcl_out(uint8_t port, urcl_t *data) {
     switch (port) {
         case 1: {
-            printf("%lc", (uint32_t) data);
+            printf("%lc", (uint32_t) *data);
             break;
         }
         case 16: {
-            putchar(data & 0xFF);
+            putchar(*data & 0xFF);
             break;
         }
         case 19: {
-            putchar(data & 0x7F);
+            putchar(*data & 0x7F);
             break;
         }
         case 2:
         case 25: {
-            printf("%lu", data);
+            printf("%hu", *data);
             break;
         }
         case 24: {
-            printf("%li", data);
+            printf("%hi", *data);
             break;
         }
         case 27: {
-            printf("%04lx", data);
+            printf("%04hx", *data);
             break;
         }
         case 28: {
-            union WordAndFloat f = { .w = data };
+            union WordAndFloat f = { .w = *data };
             printf("%f", f.f);
             break;
         }
         case 32: {
-            address = data;
+            address = *data;
             break;
         }
         case 33: {
-            fs[(int) address] = (uint16_t) data;
+            fs[address] = *data;
             break;
         }
         case 40: {
-            srand(data);
+            srand(*data);
             break;
         }
         default: {
-            printf("\n\x1b[1;33mW:\x1b[0m unknown port %%%lu was written to with %lu\n", port, data);
+            printf("\n\x1b[1;33mW:\x1b[0m unknown port %%%hhu was written to with %hu\n", port, *data);
             break;
         }
     }
