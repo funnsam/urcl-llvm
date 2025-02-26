@@ -29,14 +29,22 @@ pub struct Codegen<'a> {
     di_cu: debug_info::DICompileUnit<'a>,
 
     program: &'a Program,
+    options: &'a CodegenOptions,
+
+    word: types::IntType<'a>,
 }
 
 impl<'a> Codegen<'a> {
-    pub fn new(context: &'a CodegenContext, program: &'a Program, file_name: &'a str) -> Self {
+    pub fn new(
+        context: &'a CodegenContext,
+        program: &'a Program,
+        options: &'a CodegenOptions,
+        file_name: &'a str,
+    ) -> Self {
         let module = context.0.create_module("urcl");
         module.add_basic_value_flag(
             "Debug Info Version",
-            inkwell::module::FlagBehavior::Warning,
+            module::FlagBehavior::Warning,
             context.0.i32_type().const_int(3, false),
         );
 
@@ -58,6 +66,8 @@ impl<'a> Codegen<'a> {
             "",
         );
 
+        let word = context.0.custom_width_int_type(program.bits);
+
         Self {
             context: &context.0,
             builder: context.0.create_builder(),
@@ -67,45 +77,81 @@ impl<'a> Codegen<'a> {
             di_cu,
 
             program,
+            options,
+
+            word,
         }
     }
 
-    fn val_to_ptr(&self, v: values::IntValue<'a>) -> values::PointerValue<'a> {
-        let temp = self.builder.build_alloca(v.get_type(), "temp_val_to_ptr").unwrap();
-        self.builder.build_store(temp, v).unwrap();
-        temp
+    // fn val_to_ptr(&self, v: values::IntValue<'a>, temp: values::PointerValue<'a>) -> values::PointerValue<'a> {
+    //     self.builder.build_store(temp, v).unwrap();
+    //     temp
+    // }
+
+    fn di_basic_type(&self, name: &str, size: u64) -> debug_info::DIBasicType<'a> {
+        self.di_builder.create_basic_type(name, size, 7, 0).unwrap()
     }
 
-    pub fn generate_code(&mut self, target: &targets::TargetMachine, options: &CodegenOptions, range_to_line: &dyn Fn(&std::ops::Range<usize>) -> u32) {
-        let u8_t = self.context.custom_width_int_type(8);
-        let word_t = self.context.custom_width_int_type(self.program.bits);
+    fn imm_to_word(&self, i: &Immediate) -> values::IntValue<'a> {
+        match i {
+            Immediate::Value(v) => {
+                let unsigned = self.word.const_int_arbitrary_precision(v.as_sign_words().1);
+
+                if v.sign() == dashu::base::Sign::Negative {
+                    unsigned.const_neg()
+                } else {
+                    unsigned
+                }
+            },
+            Immediate::InstLoc(l) => self.word.const_int(*l as _, false),
+        }
+    }
+
+    fn imm_to_addr_or_word(
+        &self,
+        i: &Immediate,
+        native_addr: bool,
+        inst_bb: &[basic_block::BasicBlock<'a>],
+    ) -> values::IntValue<'a> {
+        if native_addr {
+            match i {
+                Immediate::Value(v) => {
+                    let unsigned = self.word.const_int_arbitrary_precision(v.as_sign_words().1);
+
+                    if v.sign() == dashu::base::Sign::Negative {
+                        unsigned.const_neg()
+                    } else {
+                        unsigned
+                    }
+                },
+                Immediate::InstLoc(l) => unsafe { inst_bb[*l].get_address() }
+                    .unwrap()
+                    .const_to_int(self.word),
+            }
+        } else {
+            self.imm_to_word(i)
+        }
+    }
+
+    pub fn generate_code(&mut self, target: &targets::TargetMachine, range_to_line: &dyn Fn(&std::ops::Range<usize>) -> u32) {
+        let i8_t = self.context.i8_type();
         let mach_t = self.context.ptr_sized_int_type(&target.get_target_data(), None);
         let ptr_t = self.context.ptr_type(AddressSpace::default());
+        let void_t = self.context.void_type();
 
-        let float_t = match options.float_type {
+        let float_t = match self.options.float_type {
             16 => self.context.f16_type(),
             32 => self.context.f32_type(),
             64 => self.context.f64_type(),
             128 => self.context.f128_type(),
             _ => panic!("invalid float bit width"),
         };
-        let void_t = self.context.void_type();
 
-        let di_word_t = self.di_builder.create_basic_type(
-            "word",
-            self.program.bits as u64,
-            7,
-            0,
-        ).unwrap();
-        let di_mach_t = self.di_builder.create_basic_type(
-            "host_word",
-            mach_t.get_bit_width() as u64,
-            7,
-            0,
-        ).unwrap();
+        let di_word_t = self.di_basic_type("urcl_t", self.program.bits as _);
+        let di_mach_t = self.di_basic_type("size_t", mach_t.get_bit_width() as _);
 
         let ram_size = self.program.min_stack + self.program.heap_size + self.program.dw.len() as u64;
-        let ram_t = word_t.array_type(ram_size);
+        let ram_t = self.word.array_type(ram_size);
 
         let di_ram_t = self.di_builder.create_array_type(
             di_word_t.as_type(),
@@ -114,24 +160,11 @@ impl<'a> Codegen<'a> {
             &[0..ram_size as i64],
         );
 
-        let word_1 = word_t.const_int(1, false);
-        let word_0 = word_t.const_zero();
-        let ram_size_const = word_t.const_int(ram_size, false);
+        let word_1 = self.word.const_int(1, false);
+        let word_0 = self.word.const_zero();
+        let ram_size_const = self.word.const_int(ram_size, false);
 
-        let native_addr = options.native_addr && self.program.bits == mach_t.get_bit_width();
-
-        let word_t_from_imm = |i: &Immediate| match i {
-            Immediate::Value(v) => {
-                let unsigned = word_t.const_int_arbitrary_precision(v.as_sign_words().1);
-
-                if v.sign() == dashu::base::Sign::Negative {
-                    unsigned.const_neg()
-                } else {
-                    unsigned
-                }
-            },
-            Immediate::InstLoc(l) => word_t.const_int(*l as _, false),
-        };
+        let native_addr = self.options.native_addr && self.program.bits >= mach_t.get_bit_width();
 
         let zext_or_trunc = |i: values::IntValue<'a>, t: types::IntType<'a>| {
             use core::cmp::Ordering::*;
@@ -147,12 +180,12 @@ impl<'a> Codegen<'a> {
             .add_function("urcl_main", mach_t.fn_type(&[], false), None);
         let port_out = self.module.add_function(
             "urcl_out",
-            void_t.fn_type(&[u8_t.into(), ptr_t.into()], false),
+            void_t.fn_type(&[i8_t.into(), ptr_t.into()], false),
             Some(module::Linkage::External),
         );
         let port_in = self.module.add_function(
             "urcl_in",
-            void_t.fn_type(&[ptr_t.into(), u8_t.into()], false),
+            void_t.fn_type(&[ptr_t.into(), i8_t.into()], false),
             Some(module::Linkage::External),
         );
 
@@ -160,7 +193,7 @@ impl<'a> Codegen<'a> {
             self.di_cu.get_file(),
             Some(di_mach_t.as_type()),
             &[],
-            inkwell::debug_info::DIFlagsConstants::PUBLIC,
+            debug_info::DIFlagsConstants::PUBLIC,
         );
         let di_main = self.di_builder.create_function(
             self.di_cu.as_debug_info_scope(),
@@ -189,19 +222,6 @@ impl<'a> Codegen<'a> {
         let inst_bb = (0..=self.program.instructions.len())
             .map(|i| self.context.append_basic_block(main, &format!("inst_{i}")))
             .collect::<Vec<basic_block::BasicBlock>>();
-        let imm_to_addr_or_val = |imm: &Immediate| {
-            if native_addr {
-                match imm {
-                    // TODO: const int w/ bits > 64
-                    Immediate::Value(v) => word_t.const_int(v.try_into().unwrap(), false),
-                    Immediate::InstLoc(l) => unsafe { inst_bb[*l].get_address() }
-                        .unwrap()
-                        .const_to_int(word_t),
-                }
-            } else {
-                word_t.const_int(imm.try_into().unwrap(), false)
-            }
-        };
 
         let loc = self.di_builder.create_debug_location(
             self.context,
@@ -224,7 +244,7 @@ impl<'a> Codegen<'a> {
                     0,
                 );
 
-                let r = self.builder.build_alloca(word_t, &name).unwrap();
+                let r = self.builder.build_alloca(self.word, &name).unwrap();
                 let s = self.builder.build_store(r, word_0).unwrap();
                 self.di_builder.insert_declare_before_instruction(r, Some(d), None, loc, s);
                 r
@@ -241,7 +261,7 @@ impl<'a> Codegen<'a> {
             0,
             0,
         );
-        let ram = if options.use_global {
+        let ram = if self.options.use_global {
             let g = self.module.add_global(ram_t, None, "ram");
             g.set_externally_initialized(false);
             g.set_initializer(&ram_t.const_zero());
@@ -250,11 +270,11 @@ impl<'a> Codegen<'a> {
         } else {
             self.builder.build_alloca(ram_t, "ram").unwrap()
         };
-        let dw = word_t.const_array(
+        let dw = self.word.const_array(
             self.program
                 .dw
                 .iter()
-                .map(|i| imm_to_addr_or_val(i))
+                .map(|i| self.imm_to_addr_or_word(i, native_addr, &inst_bb))
                 .collect::<Vec<_>>()
                 .as_slice(),
         );
@@ -262,7 +282,7 @@ impl<'a> Codegen<'a> {
         self.builder.build_store(ram, dw).unwrap();
         self.di_builder.insert_declare_before_instruction(ram, Some(di_ram), None, loc, s);
 
-        let stack_ptr = self.builder.build_alloca(word_t, "sp").unwrap();
+        let stack_ptr = self.builder.build_alloca(self.word, "sp").unwrap();
         let s = self.builder
             .build_store(stack_ptr, ram_size_const)
             .unwrap();
@@ -282,12 +302,13 @@ impl<'a> Codegen<'a> {
         self.builder
             .build_store(inst_cnt, mach_t.const_zero())
             .unwrap();
+        let temp_var = self.builder.build_alloca(self.word, "temp_var").unwrap();
 
         let big_switch_bb = self.context.append_basic_block(main, "big_switch_table");
-        let big_switch_to = self.builder.build_alloca(word_t, "big_switch_to").unwrap();
+        let big_switch_to = self.builder.build_alloca(self.word, "big_switch_to").unwrap();
 
         let ram_check_fail_bb = self.context.append_basic_block(main, "ram_check_fail");
-        let ram_check_fail_addr = self.builder.build_alloca(word_t, "ram_check_fail_addr").unwrap();
+        let ram_check_fail_addr = self.builder.build_alloca(self.word, "ram_check_fail_addr").unwrap();
 
         let ret = || {
             let inst_cnt_v = self
@@ -328,13 +349,13 @@ impl<'a> Codegen<'a> {
                 Register::General(0) => word_0,
                 Register::General(g) => self
                     .builder
-                    .build_load(word_t, registers[*g as usize - 1], "reg_load")
+                    .build_load(self.word, registers[*g as usize - 1], "reg_load")
                     .unwrap()
                     .into_int_value(),
-                Register::Pc => word_t.const_int(pc as _, false),
+                Register::Pc => self.word.const_int(pc as _, false),
                 Register::Sp => self
                     .builder
-                    .build_load(word_t, stack_ptr, "reg_load")
+                    .build_load(self.word, stack_ptr, "reg_load")
                     .unwrap()
                     .into_int_value(),
             };
@@ -359,23 +380,34 @@ impl<'a> Codegen<'a> {
 
             let get_any = |v: &_| match v {
                 Any::Register(r) => get_reg(r),
-                Any::Immediate(i) => imm_to_addr_or_val(i),
+                Any::Immediate(i) => self.imm_to_addr_or_word(i, native_addr, &inst_bb),
             };
 
             let get_reg_ptr = |v: &_| match v {
-                Register::General(0) => self.val_to_ptr(word_1),
+                Register::General(0) => {
+                    self.builder.build_store(temp_var, word_0).unwrap();
+                    temp_var
+                },
                 Register::General(i) => registers[*i as usize - 1],
-                Register::Pc => self.val_to_ptr(word_t.const_int(pc as _, false)),
+                Register::Pc => {
+                    let pc = self.word.const_int(pc as _, false);
+                    self.builder.build_store(temp_var, pc).unwrap();
+                    temp_var
+                },
                 Register::Sp => stack_ptr,
             };
 
             let get_any_ptr = |v: &_| match v {
                 Any::Register(r) => get_reg_ptr(r),
-                Any::Immediate(i) => self.val_to_ptr(word_t_from_imm(i)),
+                Any::Immediate(i) => {
+                    let i = self.imm_to_addr_or_word(i, native_addr, &inst_bb);
+                    self.builder.build_store(temp_var, i).unwrap();
+                    temp_var
+                },
             };
 
             let ram_gep = |a| unsafe {
-                if options.bounds_safety {
+                if self.options.bounds_safety {
                     let ok = self.builder.build_int_compare(IntPredicate::ULT, a, ram_size_const, "ram_check").unwrap();
                     let after = self.context.append_basic_block(main, "ram_check_ok");
                     self.builder.build_store(ram_check_fail_addr, a).unwrap();
@@ -383,7 +415,7 @@ impl<'a> Codegen<'a> {
                     self.builder.position_at_end(after);
                 }
 
-                let a = if mach_t.get_bit_width() > word_t.get_bit_width() {
+                let a = if mach_t.get_bit_width() > self.word.get_bit_width() {
                     self.builder
                         .build_int_z_extend(a, mach_t, "ram_gep_zext")
                         .unwrap()
@@ -392,13 +424,13 @@ impl<'a> Codegen<'a> {
                 };
 
                 self.builder
-                    .build_in_bounds_gep(word_t, ram, &[a], "ram_gep")
+                    .build_in_bounds_gep(self.word, ram, &[a], "ram_gep")
                     .unwrap()
             };
 
             let read_ram = |a| {
                 self.builder
-                    .build_load(word_t, ram_gep(a), "read_ram")
+                    .build_load(self.word, ram_gep(a), "read_ram")
                     .unwrap()
                     .into_int_value()
             };
@@ -448,7 +480,7 @@ impl<'a> Codegen<'a> {
             let push = |v| {
                 let sp_old = self
                     .builder
-                    .build_load(word_t, stack_ptr, "stack_ptr_pre_dec")
+                    .build_load(self.word, stack_ptr, "stack_ptr_pre_dec")
                     .unwrap()
                     .into_int_value();
                 let sp_new = self
@@ -463,7 +495,7 @@ impl<'a> Codegen<'a> {
             let pop = || {
                 let sp_old = self
                     .builder
-                    .build_load(word_t, stack_ptr, "stack_ptr_pre_inc")
+                    .build_load(self.word, stack_ptr, "stack_ptr_pre_inc")
                     .unwrap()
                     .into_int_value();
                 let sp_new = self
@@ -476,7 +508,7 @@ impl<'a> Codegen<'a> {
             };
 
             let bit_itof = |i: values::IntValue<'a>| {
-                let float_it = self.context.custom_width_int_type(options.float_type as _);
+                let float_it = self.context.custom_width_int_type(self.options.float_type as _);
                 let i = zext_or_trunc(i, float_it);
                 self.builder
                     .build_bit_cast(i, float_t, "bitw_itof")
@@ -485,14 +517,14 @@ impl<'a> Codegen<'a> {
             };
 
             let bit_ftoi = |f: values::FloatValue<'a>| {
-                let float_it = self.context.custom_width_int_type(options.float_type as _);
+                let float_it = self.context.custom_width_int_type(self.options.float_type as _);
                 let i = self
                     .builder
                     .build_bit_cast(f, float_it, "bitw_ftoi")
                     .unwrap()
                     .into_int_value();
 
-                zext_or_trunc(i, word_t)
+                zext_or_trunc(i, self.word)
             };
 
             macro_rules! gen {
@@ -540,7 +572,7 @@ impl<'a> Codegen<'a> {
                     let c = $gen(a, b);
                     let c = self
                         .builder
-                        .build_int_s_extend(c, word_t, "set_sext")
+                        .build_int_s_extend(c, self.word, "set_sext")
                         .unwrap();
                     #[allow(clippy::blocks_in_conditions)]
                     if set_reg($d, c) {
@@ -675,7 +707,7 @@ impl<'a> Codegen<'a> {
                     let s = self.builder
                         .build_right_shift(
                             a,
-                            word_t.const_int((self.program.bits - 1) as _, false),
+                            self.word.const_int((self.program.bits - 1) as _, false),
                             false,
                             "brn_sign",
                         )
@@ -688,7 +720,7 @@ impl<'a> Codegen<'a> {
                     let s = self.builder
                         .build_right_shift(
                             a,
-                            word_t.const_int((self.program.bits - 1) as _, false),
+                            self.word.const_int((self.program.bits - 1) as _, false),
                             false,
                             "brp_sign",
                         )
@@ -706,9 +738,9 @@ impl<'a> Codegen<'a> {
                 Instruction::Pop(d) => gen!(none d pop),
                 Instruction::Cal(a) => {
                     push(if !native_addr {
-                        word_t.const_int(pc as u64 + 1, false)
+                        self.word.const_int(pc as u64 + 1, false)
                     } else {
-                        unsafe { inst_bb[pc + 1].get_address() }.unwrap().const_to_int(word_t)
+                        unsafe { inst_bb[pc + 1].get_address() }.unwrap().const_to_int(self.word)
                     });
                     uncond_br(a);
                 },
@@ -726,7 +758,7 @@ impl<'a> Codegen<'a> {
                     gen!(2bc d a b |a: values::IntValue<'a>, b: values::IntValue<'a>| {
                         let add_ov = intrinsics::Intrinsic::find("llvm.uadd.with.overflow")
                             .unwrap()
-                            .get_declaration(&self.module, &[word_t.into()])
+                            .get_declaration(&self.module, &[self.word.into()])
                             .unwrap();
 
                         let add = self.builder
@@ -745,7 +777,7 @@ impl<'a> Codegen<'a> {
                     gen!(2bc d a b |a: values::IntValue<'a>, b: values::IntValue<'a>| {
                         let add_ov = intrinsics::Intrinsic::find("llvm.uadd.with.overflow")
                             .unwrap()
-                            .get_declaration(&self.module, &[word_t.into()])
+                            .get_declaration(&self.module, &[self.word.into()])
                             .unwrap();
 
                         let add = self.builder
@@ -806,7 +838,7 @@ impl<'a> Codegen<'a> {
                     gen!(2set d a b |a: values::IntValue<'a>, b: values::IntValue<'a>| {
                         let add_ov = intrinsics::Intrinsic::find("llvm.uadd.with.overflow")
                             .unwrap()
-                            .get_declaration(&self.module, &[word_t.into()])
+                            .get_declaration(&self.module, &[self.word.into()])
                             .unwrap();
 
                         let add = self.builder
@@ -825,7 +857,7 @@ impl<'a> Codegen<'a> {
                     gen!(2set d a b |a: values::IntValue<'a>, b: values::IntValue<'a>| {
                         let add_ov = intrinsics::Intrinsic::find("llvm.uadd.with.overflow")
                             .unwrap()
-                            .get_declaration(&self.module, &[word_t.into()])
+                            .get_declaration(&self.module, &[self.word.into()])
                             .unwrap();
 
                         let add = self.builder
@@ -887,7 +919,7 @@ impl<'a> Codegen<'a> {
                 Instruction::Abs(d, a) => gen!(1op d a |a: values::IntValue<'a>| {
                     let abs = intrinsics::Intrinsic::find("llvm.abs")
                         .unwrap()
-                        .get_declaration(&self.module, &[word_t.into()])
+                        .get_declaration(&self.module, &[self.word.into()])
                         .unwrap();
                     let fals = self.context.custom_width_int_type(1).const_zero();
 
@@ -903,7 +935,7 @@ impl<'a> Codegen<'a> {
                     let v = get_any_ptr(v);
 
                     self.builder
-                        .build_call(port_out, &[zext_or_trunc(p, u8_t).into(), v.into()], "out")
+                        .build_call(port_out, &[zext_or_trunc(p, i8_t).into(), v.into()], "out")
                         .unwrap();
                     self.builder
                         .build_unconditional_branch(inst_bb[pc + 1])
@@ -914,7 +946,7 @@ impl<'a> Codegen<'a> {
                     let p = get_any(p);
 
                     self.builder
-                        .build_call(port_in, &[r.into(), zext_or_trunc(p, u8_t).into()], "")
+                        .build_call(port_in, &[r.into(), zext_or_trunc(p, i8_t).into()], "")
                         .unwrap();
                     self.builder
                         .build_unconditional_branch(inst_bb[pc + 1])
@@ -926,7 +958,7 @@ impl<'a> Codegen<'a> {
                     let b = self.builder.build_int_z_extend(b, ext_t, "umlt_b_zext").unwrap();
                     let r = self.builder.build_int_mul(a, b, "umlt_mlt").unwrap();
                     let s = self.builder.build_right_shift(r, ext_t.const_int(self.program.bits as _, false), false, "uml_rsh").unwrap();
-                    self.builder.build_int_truncate(s, word_t, "umlt_trunc").unwrap()
+                    self.builder.build_int_truncate(s, self.word, "umlt_trunc").unwrap()
                 }),
                 Instruction::SUmlt(d, a, b) => gen!(2op d a b |a, b| {
                     let ext_t = self.context.custom_width_int_type(self.program.bits * 2);
@@ -934,7 +966,7 @@ impl<'a> Codegen<'a> {
                     let b = self.builder.build_int_s_extend(b, ext_t, "sumlt_b_sext").unwrap();
                     let r = self.builder.build_int_mul(a, b, "sumlt_mlt").unwrap();
                     let s = self.builder.build_right_shift(r, ext_t.const_int(self.program.bits as _, false), false, "suml_rsh").unwrap();
-                    self.builder.build_int_truncate(s, word_t, "sumlt_trunc").unwrap()
+                    self.builder.build_int_truncate(s, self.word, "sumlt_trunc").unwrap()
                 }),
                 Instruction::ItoF(d, a) => gen!(1op d a |a| {
                     let f = self.builder.build_signed_int_to_float(a, float_t, "itof").unwrap();
@@ -942,7 +974,7 @@ impl<'a> Codegen<'a> {
                 }),
                 Instruction::FtoI(d, a) => gen!(1op d a |a| {
                     let f = bit_itof(a);
-                    self.builder.build_float_to_signed_int(f, word_t, "ftoi").unwrap()
+                    self.builder.build_float_to_signed_int(f, self.word, "ftoi").unwrap()
                 }),
                 Instruction::FRtoI(d, a) => gen!(1op d a |a| {
                     let f = bit_itof(a);
@@ -956,7 +988,7 @@ impl<'a> Codegen<'a> {
                         .unwrap_left()
                         .into_float_value();
 
-                    self.builder.build_float_to_signed_int(r, word_t, "frtoi").unwrap()
+                    self.builder.build_float_to_signed_int(r, self.word, "frtoi").unwrap()
                 }),
                 Instruction::FAdd(d, a, b) => gen!(2fop d a b |a, b| {
                     self.builder.build_float_add(a, b, "fadd").unwrap()
@@ -1002,7 +1034,7 @@ impl<'a> Codegen<'a> {
             self.builder.position_at_end(big_switch_bb);
             let v = self
                 .builder
-                .build_load(word_t, big_switch_to, "get_addr")
+                .build_load(self.word, big_switch_to, "get_addr")
                 .unwrap();
             self.builder
                 .build_switch(
@@ -1010,15 +1042,15 @@ impl<'a> Codegen<'a> {
                     *inst_bb.last().unwrap(),
                     &inst_bb.iter()
                         .enumerate()
-                        .map(|(i, b)| (word_t.const_int(i as _, false), *b))
+                        .map(|(i, b)| (self.word.const_int(i as _, false), *b))
                         .collect::<Vec<_>>(),
                 )
                 .unwrap();
         }
 
         self.builder.position_at_end(ram_check_fail_bb);
-        if options.bounds_safety {
-            let ram_check_fail = options.bounds_safety.then(|| self.module.add_function(
+        if self.options.bounds_safety {
+            let ram_check_fail = self.options.bounds_safety.then(|| self.module.add_function(
                 "memory_oob",
                 void_t.fn_type(&[ptr_t.into()], false),
                 Some(module::Linkage::External),

@@ -70,20 +70,24 @@ fn main() {
         at += l.len() + 1;
     }
 
+    let options = urcl_llvm_backend::CodegenOptions {
+        use_global: args.use_global,
+        float_type: args.float,
+        native_addr: args.native_addr,
+        bounds_safety: args.bounds_safety,
+    };
+
     let ctx = urcl_llvm_backend::CodegenContext::new();
-    let mut codegen = urcl_llvm_backend::Codegen::new(&ctx, &program, &args.urcl);
+    let mut codegen = urcl_llvm_backend::Codegen::new(&ctx, &program, &options, &args.urcl);
     let target = urcl_llvm_backend::Codegen::get_machine(
         args.triple.as_deref(),
         args.features.as_deref(),
         opt.clone(),
     );
 
-    codegen.generate_code(&target, &urcl_llvm_backend::CodegenOptions {
-        use_global: args.use_global,
-        float_type: args.float,
-        native_addr: args.native_addr,
-        bounds_safety: args.bounds_safety,
-    }, &|r: &core::ops::Range<usize>| (bsearch(r.start, &lines) + 1) as u32);
+    codegen.generate_code(&target, &|r: &core::ops::Range<usize>| {
+        (bsearch(r.start, &lines) + 1) as u32
+    });
 
     if args.emit_ir {
         codegen.dump();
