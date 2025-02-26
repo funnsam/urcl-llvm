@@ -94,6 +94,7 @@ impl<'a> Codegen<'a> {
 
     fn imm_to_word(&self, i: &Immediate) -> values::IntValue<'a> {
         match i {
+            Immediate::Value(v) if v.is_zero() => self.word.const_zero(),
             Immediate::Value(v) => {
                 let unsigned = self.word.const_int_arbitrary_precision(v.as_sign_words().1);
 

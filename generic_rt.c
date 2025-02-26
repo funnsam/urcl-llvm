@@ -4,14 +4,10 @@
 #include <locale.h>
 #include <time.h>
 
-#define STR(s) #s
-#define EXP_STR(s) STR(s)
-#define CONCAT2(a, b) a b
-#define CONCAT3(a, b, c) a b c
-
 typedef _BitInt(URCL_BITS) urcl_t;
-
 extern size_t urcl_main();
+void urcl_in(urcl_t *ret, uint8_t port);
+void urcl_out(uint8_t port, urcl_t *data);
 
 union WordAndFloat {
     urcl_t w;
