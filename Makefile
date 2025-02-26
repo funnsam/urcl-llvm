@@ -1,5 +1,5 @@
 CC_FLAGS = -Wpedantic -Wall -Wextra -std=gnu23 -lrt -O3
-CC = clang
+CC = gcc
 LD_FLAGS = -O3
 LD = gcc
 
