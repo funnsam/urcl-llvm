@@ -98,13 +98,9 @@ impl<'a> Parser<'a> {
     fn span(&self) -> Span { self.lex.span() }
     fn total_span(&self) -> Span { self.start..self.lex.span().end }
 
-    fn error(&mut self, err: ParseError) {
-        self.errors.push((err, self.span()));
-    }
+    fn error(&mut self, err: ParseError) { self.errors.push((err, self.span())); }
 
-    fn total_span_error(&mut self, err: ParseError) {
-        self.errors.push((err, self.total_span()));
-    }
+    fn total_span_error(&mut self, err: ParseError) { self.errors.push((err, self.total_span())); }
 
     fn wait_nl(&mut self) {
         while let Some(t) = self.next_token() {
@@ -150,46 +146,35 @@ impl<'a> Parser<'a> {
                     _ => Err((ParseError::InvalidOperand(ok), self.span())),
                 }
             },
-            (
-                Some(Ok(lexer::Token::Reg(r))),
-                OperandKind::Register | OperandKind::Any,
-            ) => Ok((RawOperand::Register(r), self.span())),
-            (
-                Some(Ok(lexer::Token::Integer(i))),
-                OperandKind::Immediate | OperandKind::Any,
-            ) => Ok((RawOperand::Immediate(Immediate::Value(i)), self.span())),
-            (
-                Some(Ok(lexer::Token::Heap(h))),
-                OperandKind::Immediate | OperandKind::Any,
-            ) => Ok((RawOperand::Heap(h), self.span())),
-            (
-                Some(Ok(lexer::Token::Macro(m))),
-                OperandKind::Immediate | OperandKind::Any,
-            ) => Ok((
+            (Some(Ok(lexer::Token::Reg(r))), OperandKind::Register | OperandKind::Any) => {
+                Ok((RawOperand::Register(r), self.span()))
+            },
+            (Some(Ok(lexer::Token::Integer(i))), OperandKind::Immediate | OperandKind::Any) => {
+                Ok((RawOperand::Immediate(Immediate::Value(i)), self.span()))
+            },
+            (Some(Ok(lexer::Token::Heap(h))), OperandKind::Immediate | OperandKind::Any) => {
+                Ok((RawOperand::Heap(h), self.span()))
+            },
+            (Some(Ok(lexer::Token::Macro(m))), OperandKind::Immediate | OperandKind::Any) => Ok((
                 RawOperand::MacroImm(
                     MacroImm::from_str(m).map_err(|_| (ParseError::UnknownMacro, self.span()))?,
                 ),
                 self.span(),
             )),
-            (
-                Some(Ok(lexer::Token::Label(l))),
-                OperandKind::Immediate | OperandKind::Any,
-            ) => Ok((RawOperand::Label(l), self.span())),
-            (
-                Some(Ok(lexer::Token::Relative(r))),
-                OperandKind::Immediate | OperandKind::Any,
-            ) => Ok((
-                RawOperand::Immediate(Immediate::InstLoc(
-                    (Integer::from(self.instructions.len()) + r)
-                        .to_usize()
-                        .ok_or((ParseError::InvalidRelative, self.span()))?,
-                )),
-                self.span(),
-            )),
-            (
-                Some(Ok(lexer::Token::Port(p))),
-                OperandKind::Immediate | OperandKind::Any,
-            ) => Ok((
+            (Some(Ok(lexer::Token::Label(l))), OperandKind::Immediate | OperandKind::Any) => {
+                Ok((RawOperand::Label(l), self.span()))
+            },
+            (Some(Ok(lexer::Token::Relative(r))), OperandKind::Immediate | OperandKind::Any) => {
+                Ok((
+                    RawOperand::Immediate(Immediate::InstLoc(
+                        (Integer::from(self.instructions.len()) + r)
+                            .to_usize()
+                            .ok_or((ParseError::InvalidRelative, self.span()))?,
+                    )),
+                    self.span(),
+                ))
+            },
+            (Some(Ok(lexer::Token::Port(p))), OperandKind::Immediate | OperandKind::Any) => Ok((
                 RawOperand::Immediate(Immediate::Value((p as usize).into())),
                 self.span(),
             )),
@@ -223,8 +208,10 @@ impl<'a> Parser<'a> {
 
     fn parse_inst(&mut self, n: &'a str) -> Result<MidInst<'a>, ()> {
         if let Some(i) = Instruction::properties(n) {
-            let mut oprs =
-                vec![(RawOperand::Immediate(Immediate::Value(Integer::ZERO)), 0..0); i.operands.len()];
+            let mut oprs = vec![
+                (RawOperand::Immediate(Immediate::Value(Integer::ZERO)), 0..0);
+                i.operands.len()
+            ];
             let mut errors = false;
 
             if let (true, Some(j)) = (self.port_v2, i.port_v2) {
@@ -310,7 +297,11 @@ impl<'a> Parser<'a> {
 
                     in_sq_bracket = false;
                 },
-                Ok(lexer::Token::Newline) => if !in_sq_bracket { break },
+                Ok(lexer::Token::Newline) => {
+                    if !in_sq_bracket {
+                        break;
+                    }
+                },
                 Ok(lexer::Token::String(s)) => {
                     for c in s.iter() {
                         self.dw.push((
@@ -328,10 +319,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn parse_program(
-        mut self,
-        max_ram: u64,
-    ) -> Result<Program, Vec<(ParseError, Span)>> {
+    pub fn parse_program(mut self, max_ram: u64) -> Result<Program, Vec<(ParseError, Span)>> {
         let mut pending_labels: Vec<&str> = Vec::new();
 
         while let Some(t) = self.next_token() {
@@ -456,7 +444,9 @@ impl<'a> Parser<'a> {
         });
 
         let heap_size = self.min_heap().max(
-            max_ram.saturating_sub(self.min_stack()).saturating_sub(self.dw.len() as _)
+            max_ram
+                .saturating_sub(self.min_stack())
+                .saturating_sub(self.dw.len() as _),
         );
 
         let instructions = core::mem::take(&mut self.instructions);
@@ -474,12 +464,15 @@ impl<'a> Parser<'a> {
             instructions: instructions
                 .into_iter()
                 .map(|(i, span)| {
-                    (Instruction::construct(
-                        i.0,
-                        i.1.iter()
-                            .map(|i| self.finalize(i, dw_len, heap_size))
-                            .collect(),
-                    ), span)
+                    (
+                        Instruction::construct(
+                            i.0,
+                            i.1.iter()
+                                .map(|i| self.finalize(i, dw_len, heap_size))
+                                .collect(),
+                        ),
+                        span,
+                    )
                 })
                 .collect(),
             dw: dw
@@ -524,30 +517,26 @@ impl<'a> Parser<'a> {
             RawOperand::MacroImm(MacroImm::Heap) => {
                 Any::Immediate(Immediate::Value(heap_size.into()))
             },
-            RawOperand::MacroImm(MacroImm::Max) => {
-                Any::Immediate(Immediate::Value((Integer::ONE << self.bits().to_usize().unwrap()) - 1))
-            },
+            RawOperand::MacroImm(MacroImm::Max) => Any::Immediate(Immediate::Value(
+                (Integer::ONE << self.bits().to_usize().unwrap()) - 1,
+            )),
             RawOperand::MacroImm(MacroImm::SMax) => Any::Immediate(Immediate::Value(
                 (Integer::ONE << (self.bits().to_usize().unwrap() - 1)) - 1,
             )),
-            RawOperand::MacroImm(MacroImm::Msb) => {
-                Any::Immediate(Immediate::Value(Integer::ONE << (self.bits().to_usize().unwrap() - 1)))
-            },
-            RawOperand::MacroImm(MacroImm::SMsb) => {
-                Any::Immediate(Immediate::Value(Integer::ONE << (self.bits().to_usize().unwrap() - 2)))
-            },
+            RawOperand::MacroImm(MacroImm::Msb) => Any::Immediate(Immediate::Value(
+                Integer::ONE << (self.bits().to_usize().unwrap() - 1),
+            )),
+            RawOperand::MacroImm(MacroImm::SMsb) => Any::Immediate(Immediate::Value(
+                Integer::ONE << (self.bits().to_usize().unwrap() - 2),
+            )),
             RawOperand::MacroImm(MacroImm::UHalf | MacroImm::LHalf) => todo!(),
-            RawOperand::Label(l) => Any::Immediate(
-                self.labels
-                    .get(l)
-                    .map_or_else(
-                        || {
-                            self.errors.push((ParseError::UnknownLabel, op.1.clone()));
-                            Immediate::Value(Integer::ZERO)
-                        },
-                        |v| v.clone(),
-                    )
-            ),
+            RawOperand::Label(l) => Any::Immediate(self.labels.get(l).map_or_else(
+                || {
+                    self.errors.push((ParseError::UnknownLabel, op.1.clone()));
+                    Immediate::Value(Integer::ZERO)
+                },
+                |v| v.clone(),
+            )),
         }
     }
 }

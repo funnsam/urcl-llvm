@@ -1,5 +1,5 @@
-use core::fmt;
 use crate::{Immediate, Register};
+use core::fmt;
 
 #[derive(Clone, strum::EnumTryAs)]
 pub enum Any {

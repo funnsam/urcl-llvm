@@ -1,6 +1,6 @@
 use core::fmt;
-use std::borrow::Cow;
 use dashu::Integer;
+use std::borrow::Cow;
 
 #[derive(Clone)]
 pub enum Immediate {

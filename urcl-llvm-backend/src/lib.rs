@@ -1,7 +1,7 @@
 use inkwell::{debug_info::AsDIScope, *};
 use urcl_ast::*;
 
-pub use inkwell::{targets::FileType, OptimizationLevel};
+pub use inkwell::{OptimizationLevel, targets::FileType};
 
 pub struct CodegenContext(context::Context);
 
@@ -83,11 +83,6 @@ impl<'a> Codegen<'a> {
         }
     }
 
-    // fn val_to_ptr(&self, v: values::IntValue<'a>, temp: values::PointerValue<'a>) -> values::PointerValue<'a> {
-    //     self.builder.build_store(temp, v).unwrap();
-    //     temp
-    // }
-
     fn di_basic_type(&self, name: &str, size: u64) -> debug_info::DIBasicType<'a> {
         self.di_builder.create_basic_type(name, size, 7, 0).unwrap()
     }
@@ -134,9 +129,15 @@ impl<'a> Codegen<'a> {
         }
     }
 
-    pub fn generate_code(&mut self, target: &targets::TargetMachine, range_to_line: &dyn Fn(&std::ops::Range<usize>) -> u32) {
+    pub fn generate_code(
+        &mut self,
+        target: &targets::TargetMachine,
+        range_to_line: &dyn Fn(&std::ops::Range<usize>) -> u32,
+    ) {
         let i8_t = self.context.i8_type();
-        let mach_t = self.context.ptr_sized_int_type(&target.get_target_data(), None);
+        let mach_t = self
+            .context
+            .ptr_sized_int_type(&target.get_target_data(), None);
         let ptr_t = self.context.ptr_type(AddressSpace::default());
         let void_t = self.context.void_type();
 
@@ -151,7 +152,8 @@ impl<'a> Codegen<'a> {
         let di_word_t = self.di_basic_type("urcl_t", self.program.bits as _);
         let di_mach_t = self.di_basic_type("size_t", mach_t.get_bit_width() as _);
 
-        let ram_size = self.program.min_stack + self.program.heap_size + self.program.dw.len() as u64;
+        let ram_size =
+            self.program.min_stack + self.program.heap_size + self.program.dw.len() as u64;
         let ram_t = self.word.array_type(ram_size);
 
         let di_ram_t = self.di_builder.create_array_type(
@@ -247,7 +249,8 @@ impl<'a> Codegen<'a> {
 
                 let r = self.builder.build_alloca(self.word, &name).unwrap();
                 let s = self.builder.build_store(r, word_0).unwrap();
-                self.di_builder.insert_declare_before_instruction(r, Some(d), None, loc, s);
+                self.di_builder
+                    .insert_declare_before_instruction(r, Some(d), None, loc, s);
                 r
             })
             .collect::<Vec<_>>();
@@ -281,12 +284,11 @@ impl<'a> Codegen<'a> {
         );
         let s = self.builder.build_store(ram, ram_t.const_zero()).unwrap();
         self.builder.build_store(ram, dw).unwrap();
-        self.di_builder.insert_declare_before_instruction(ram, Some(di_ram), None, loc, s);
+        self.di_builder
+            .insert_declare_before_instruction(ram, Some(di_ram), None, loc, s);
 
         let stack_ptr = self.builder.build_alloca(self.word, "sp").unwrap();
-        let s = self.builder
-            .build_store(stack_ptr, ram_size_const)
-            .unwrap();
+        let s = self.builder.build_store(stack_ptr, ram_size_const).unwrap();
         let d = self.di_builder.create_auto_variable(
             lexical_block.as_debug_info_scope(),
             "sp",
@@ -297,7 +299,8 @@ impl<'a> Codegen<'a> {
             0,
             0,
         );
-        self.di_builder.insert_declare_before_instruction(stack_ptr, Some(d), None, loc, s);
+        self.di_builder
+            .insert_declare_before_instruction(stack_ptr, Some(d), None, loc, s);
 
         let inst_cnt = self.builder.build_alloca(mach_t, "inst_cnt").unwrap();
         self.builder
@@ -306,10 +309,16 @@ impl<'a> Codegen<'a> {
         let temp_var = self.builder.build_alloca(self.word, "temp_var").unwrap();
 
         let big_switch_bb = self.context.append_basic_block(main, "big_switch_table");
-        let big_switch_to = self.builder.build_alloca(self.word, "big_switch_to").unwrap();
+        let big_switch_to = self
+            .builder
+            .build_alloca(self.word, "big_switch_to")
+            .unwrap();
 
         let ram_check_fail_bb = self.context.append_basic_block(main, "ram_check_fail");
-        let ram_check_fail_addr = self.builder.build_alloca(self.word, "ram_check_fail_addr").unwrap();
+        let ram_check_fail_addr = self
+            .builder
+            .build_alloca(self.word, "ram_check_fail_addr")
+            .unwrap();
 
         let ret = || {
             let inst_cnt_v = self
@@ -338,10 +347,7 @@ impl<'a> Codegen<'a> {
                         .build_unconditional_branch(big_switch_bb)
                         .unwrap();
                 } else {
-                    let v = self
-                        .builder
-                        .build_int_to_ptr(v, ptr_t, "target")
-                        .unwrap();
+                    let v = self.builder.build_int_to_ptr(v, ptr_t, "target").unwrap();
                     self.builder.build_indirect_branch(v, &inst_bb).unwrap();
                 }
             };
@@ -409,10 +415,15 @@ impl<'a> Codegen<'a> {
 
             let ram_gep = |a| unsafe {
                 if self.options.bounds_safety {
-                    let ok = self.builder.build_int_compare(IntPredicate::ULT, a, ram_size_const, "ram_check").unwrap();
+                    let ok = self
+                        .builder
+                        .build_int_compare(IntPredicate::ULT, a, ram_size_const, "ram_check")
+                        .unwrap();
                     let after = self.context.append_basic_block(main, "ram_check_ok");
                     self.builder.build_store(ram_check_fail_addr, a).unwrap();
-                    self.builder.build_conditional_branch(ok, after, ram_check_fail_bb).unwrap();
+                    self.builder
+                        .build_conditional_branch(ok, after, ram_check_fail_bb)
+                        .unwrap();
                     self.builder.position_at_end(after);
                 }
 
@@ -443,7 +454,11 @@ impl<'a> Codegen<'a> {
             let cond_br = |c, d: &_| match d {
                 Any::Immediate(d) => {
                     self.builder
-                        .build_conditional_branch(c, inst_bb[usize::try_from(d).unwrap()], inst_bb[pc + 1])
+                        .build_conditional_branch(
+                            c,
+                            inst_bb[usize::try_from(d).unwrap()],
+                            inst_bb[pc + 1],
+                        )
                         .unwrap();
                 },
                 Any::Register(d) => {
@@ -509,7 +524,9 @@ impl<'a> Codegen<'a> {
             };
 
             let bit_itof = |i: values::IntValue<'a>| {
-                let float_it = self.context.custom_width_int_type(self.options.float_type as _);
+                let float_it = self
+                    .context
+                    .custom_width_int_type(self.options.float_type as _);
                 let i = zext_or_trunc(i, float_it);
                 self.builder
                     .build_bit_cast(i, float_t, "bitw_itof")
@@ -518,7 +535,9 @@ impl<'a> Codegen<'a> {
             };
 
             let bit_ftoi = |f: values::FloatValue<'a>| {
-                let float_it = self.context.custom_width_int_type(self.options.float_type as _);
+                let float_it = self
+                    .context
+                    .custom_width_int_type(self.options.float_type as _);
                 let i = self
                     .builder
                     .build_bit_cast(f, float_it, "bitw_ftoi")
@@ -741,7 +760,9 @@ impl<'a> Codegen<'a> {
                     push(if !native_addr {
                         self.word.const_int(pc as u64 + 1, false)
                     } else {
-                        unsafe { inst_bb[pc + 1].get_address() }.unwrap().const_to_int(self.word)
+                        unsafe { inst_bb[pc + 1].get_address() }
+                            .unwrap()
+                            .const_to_int(self.word)
                     });
                     uncond_br(a);
                 },
@@ -1041,7 +1062,8 @@ impl<'a> Codegen<'a> {
                 .build_switch(
                     v.into_int_value(),
                     *inst_bb.last().unwrap(),
-                    &inst_bb.iter()
+                    &inst_bb
+                        .iter()
                         .enumerate()
                         .map(|(i, b)| (self.word.const_int(i as _, false), *b))
                         .collect::<Vec<_>>(),
@@ -1051,17 +1073,17 @@ impl<'a> Codegen<'a> {
 
         self.builder.position_at_end(ram_check_fail_bb);
         if self.options.bounds_safety {
-            let ram_check_fail = self.options.bounds_safety.then(|| self.module.add_function(
-                "memory_oob",
-                void_t.fn_type(&[ptr_t.into()], false),
-                Some(module::Linkage::External),
-            ));
+            let ram_check_fail = self.options.bounds_safety.then(|| {
+                self.module.add_function(
+                    "memory_oob",
+                    void_t.fn_type(&[ptr_t.into()], false),
+                    Some(module::Linkage::External),
+                )
+            });
 
-            self.builder.build_call(
-                ram_check_fail.unwrap(),
-                &[ram_check_fail_addr.into()],
-                "",
-            ).unwrap();
+            self.builder
+                .build_call(ram_check_fail.unwrap(), &[ram_check_fail_addr.into()], "")
+                .unwrap();
         }
         ret();
 

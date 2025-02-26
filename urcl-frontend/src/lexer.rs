@@ -104,7 +104,9 @@ fn get_char_esc<I: Iterator<Item = char>>(iter: &mut I) -> Option<u32> {
             },
             'u' => {
                 let mut b = String::with_capacity(4);
-                for _ in 0..4 { b.push(iter.next()?) };
+                for _ in 0..4 {
+                    b.push(iter.next()?)
+                }
 
                 u32::from_str_radix(&b, 16).ok()
             },
