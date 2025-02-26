@@ -1,0 +1,43 @@
+bits 8
+
+@define case_result %numb
+@define test_cases %int
+@define test_end %text
+@define test_end_data '\n'
+@define total_tests %uint
+imm r1 1
+
+out total_tests 1
+
+// dw
+    lod r1 .dw_normal
+    sub r1 r1 23
+    out case_result r1
+
+    imm r2 .dw_array
+    lod r1 r2
+    sub r1 r1 123
+    out case_result r1
+
+    inc r2 r2
+    lod r1 r2
+    sub r1 r1 223
+    out case_result r1
+
+    lod r1 .dw_label
+    sub r1 r1 .dw_array
+    out case_result r1
+out test_cases 4
+out test_end test_end_data
+
+.dw_normal
+dw 23
+
+.dw_array
+dw [
+    123
+    223
+]
+
+.dw_label
+dw .dw_array

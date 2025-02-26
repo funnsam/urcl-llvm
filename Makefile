@@ -5,7 +5,7 @@ LD = gcc
 
 temp_bits := $(shell mktemp -u)
 
-test: tests/core tests/basic1 tests/basic2 tests/special_regs tests/complex
+test: $(shell ls tests/*.urcl | cut -d . -f 1)
 	for f in `echo "$^"`; do \
 		./$$f; \
 	done
