@@ -1,8 +1,8 @@
 bits 32
 
-@define the_port %numb
+@define %the_port %numb
 @define .temp r1
 @define m69 69420
 
 imm .temp m69
-out the_port .temp
+out %the_port .temp

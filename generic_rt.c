@@ -21,7 +21,7 @@ void urcl_in(urcl_t *ret, uint8_t port) {
             break;
         }
         default: {
-            printf("\n\x1b[1;33mW:\x1b[0m unknown port %%%lu was read\n", port);
+            printf("\n\x1b[1;33mW:\x1b[0m unknown port %%%hhu was read\n", port);
             *ret = 0;
             break;
         }
@@ -74,7 +74,7 @@ void urcl_out(uint8_t port, urcl_t *data) {
 }
 
 void memory_oob(urcl_t *addr) {
-    printf("\n\x1b[1;31mE:\x1b[0m out of bounds memory address 0x%lx was indexed\n", *addr);
+    printf("\n\x1b[1;31mE:\x1b[0m out of bounds memory address 0x%lx was indexed\n", (uint64_t) *addr);
 }
 
 int main() {

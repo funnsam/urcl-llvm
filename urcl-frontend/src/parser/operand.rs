@@ -3,7 +3,7 @@ use core::str::FromStr;
 use dashu::Integer;
 use logos::Span;
 use num_traits::ToPrimitive;
-use urcl_ast::{Immediate, OperandKind, Register};
+use urcl_ast::{Immediate, OperandKind, Port, Register};
 
 use crate::lexer::{LexResult, Token};
 
@@ -77,8 +77,16 @@ impl<'a> Parser<'a> {
                 )),
                 self.span(),
             )),
-            (Token::Port(p), OperandKind::Immediate | OperandKind::Any) => Ok((
-                RawOperand::Immediate(Immediate::Value((p as usize).into())),
+            (Token::Port(p), OperandKind::Immediate | OperandKind::Any) => {
+                let p = Port::from_str(p).map_err(|_| (ParseError::UnknownPort, self.span()))?;
+
+                Ok((
+                    RawOperand::Immediate(Immediate::Value((p as usize).into())),
+                    self.span(),
+                ))
+            },
+            (Token::PortInt(p), OperandKind::Immediate | OperandKind::Any) => Ok((
+                RawOperand::Immediate(Immediate::Value(p.into())),
                 self.span(),
             )),
             _ => Err((ParseError::InvalidOperand(ok), self.span())),
