@@ -46,7 +46,10 @@ urclos: urcl-os/urclos3.o urclos_rt.o
 
 clean:
 	- find . -name "*.o" -delete
-	- rm tests/core tests/basic1 tests/basic2 tests/special_regs tests/complex benchmarks/mandelbrot urclos
+	- rm $(shell ls benchmarks/*.urcl | cut -d . -f 1)
+	- rm $(shell ls examples/*.urcl | cut -d . -f 1)
+	- rm $(shell ls test/*.urcl | cut -d . -f 1)
+	- rm urclos
 
 clean_tests:
 	- rm tests/core tests/basic1 tests/basic2 tests/special_regs tests/complex tests/*.o
