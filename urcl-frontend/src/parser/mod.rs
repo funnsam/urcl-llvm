@@ -5,7 +5,7 @@ mod util;
 
 use std::collections::HashMap;
 
-use crate::lexer::{Token, Lexer, LexResult};
+use crate::lexer::{LexResult, Lexer, Token};
 
 use dashu::Integer;
 use error::ParseError;
@@ -182,10 +182,7 @@ impl<'a> Parser<'a> {
             match t {
                 Ok(Token::Macro(name)) => self.parse_macro(name),
                 Ok(t) if t.is_macro_or_name("bits") => {
-                    if let Some(Ok(
-                        Token::CmpLe | Token::CmpGe | Token::CmpEq,
-                    )) = self.peek_next()
-                    {
+                    if let Some(Ok(Token::CmpLe | Token::CmpGe | Token::CmpEq)) = self.peek_next() {
                         self.next_token();
                     }
 

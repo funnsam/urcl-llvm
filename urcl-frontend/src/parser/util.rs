@@ -28,7 +28,9 @@ impl<'a> Parser<'a> {
 
     pub(crate) fn error(&mut self, err: ParseError) { self.errors.push((err, self.span())); }
 
-    pub(crate) fn total_span_error(&mut self, err: ParseError) { self.errors.push((err, self.total_span())); }
+    pub(crate) fn total_span_error(&mut self, err: ParseError) {
+        self.errors.push((err, self.total_span()));
+    }
 
     pub(crate) fn wait_nl(&mut self) {
         while let Some(t) = self.next_token() {
@@ -50,7 +52,11 @@ impl<'a> Parser<'a> {
             })
     }
 
-    pub(crate) fn opt_unwrap_or_err_default<T: Default>(&mut self, opt: Option<T>, err: ParseError) -> T {
+    pub(crate) fn opt_unwrap_or_err_default<T: Default>(
+        &mut self,
+        opt: Option<T>,
+        err: ParseError,
+    ) -> T {
         opt.unwrap_or_else(|| {
             self.error(err);
             T::default()

@@ -33,10 +33,12 @@ impl<'a> Parser<'a> {
         ok: &'static OperandKind,
     ) -> Result<(RawOperand<'a>, Span), (ParseError, Span)> {
         match t {
-            Some(Ok(t)) => if let Some(def) = self.defines.get(&t) {
-                Ok(def.clone())
-            } else {
-                self.parse_operand_with_token(t, ok)
+            Some(Ok(t)) => {
+                if let Some(def) = self.defines.get(&t) {
+                    Ok(def.clone())
+                } else {
+                    self.parse_operand_with_token(t, ok)
+                }
             },
             Some(Err(e)) => Err((ParseError::LexError(e), self.span())),
             None => Err((ParseError::UnexpectedEof, self.span())),
@@ -67,16 +69,14 @@ impl<'a> Parser<'a> {
             (Token::Label(l), OperandKind::Immediate | OperandKind::Any) => {
                 Ok((RawOperand::Label(l), self.span()))
             },
-            (Token::Relative(r), OperandKind::Immediate | OperandKind::Any) => {
-                Ok((
-                    RawOperand::Immediate(Immediate::InstLoc(
-                        (Integer::from(self.instructions.len()) + r)
-                            .to_usize()
-                            .ok_or((ParseError::InvalidRelative, self.span()))?,
-                    )),
-                    self.span(),
-                ))
-            },
+            (Token::Relative(r), OperandKind::Immediate | OperandKind::Any) => Ok((
+                RawOperand::Immediate(Immediate::InstLoc(
+                    (Integer::from(self.instructions.len()) + r)
+                        .to_usize()
+                        .ok_or((ParseError::InvalidRelative, self.span()))?,
+                )),
+                self.span(),
+            )),
             (Token::Port(p), OperandKind::Immediate | OperandKind::Any) => Ok((
                 RawOperand::Immediate(Immediate::Value((p as usize).into())),
                 self.span(),

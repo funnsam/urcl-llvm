@@ -153,27 +153,19 @@ impl core::hash::Hash for DecimalHash {
 }
 
 impl From<Decimal> for DecimalHash {
-    fn from(value: Decimal) -> Self {
-        Self(value)
-    }
+    fn from(value: Decimal) -> Self { Self(value) }
 }
 
 impl From<DecimalHash> for Decimal {
-    fn from(value: DecimalHash) -> Self {
-        value.0
-    }
+    fn from(value: DecimalHash) -> Self { value.0 }
 }
 
 impl core::ops::Deref for DecimalHash {
     type Target = Decimal;
 
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
+    fn deref(&self) -> &Self::Target { &self.0 }
 }
 
 impl core::ops::DerefMut for DecimalHash {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
+    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.0 }
 }
