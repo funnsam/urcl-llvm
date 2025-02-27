@@ -115,3 +115,29 @@ fn get_char_esc<I: Iterator<Item = char>>(iter: &mut I) -> Option<u32> {
         c => Some(c as u32),
     }
 }
+
+impl<'a> Token<'a> {
+    pub fn is_macro(&self, m: &str) -> bool {
+        if let Token::Macro(t) = self {
+            t.eq_ignore_ascii_case(m)
+        } else {
+            false
+        }
+    }
+
+    pub fn is_name(&self, m: &str) -> bool {
+        if let Token::Name(t) = self {
+            t.eq_ignore_ascii_case(m)
+        } else {
+            false
+        }
+    }
+
+    pub fn is_macro_or_name(&self, m: &str) -> bool {
+        if let Token::Macro(t) | Token::Name(t) = self {
+            t.eq_ignore_ascii_case(m)
+        } else {
+            false
+        }
+    }
+}

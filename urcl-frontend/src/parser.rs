@@ -1,6 +1,6 @@
 use std::{collections::HashMap, str::FromStr};
 
-use crate::*;
+use crate::{lexer::{Token, Lexer, LexResult}, Span};
 
 use dashu::Integer;
 use num_traits::ToPrimitive;
@@ -10,8 +10,8 @@ type MidInst<'a> = (&'a str, Vec<(RawOperand<'a>, Span)>, Span);
 
 #[derive(Debug)]
 pub struct Parser<'a> {
-    lex: lexer::Lexer<'a>,
-    peeked: Option<lexer::LexResult<'a>>,
+    lex: Lexer<'a>,
+    peeked: Option<LexResult<'a>>,
     start: usize,
 
     bits: Option<u32>,
@@ -56,7 +56,7 @@ enum MacroImm {
 }
 
 impl<'a> Parser<'a> {
-    pub fn new(lex: lexer::Lexer<'a>) -> Self {
+    pub fn new(lex: Lexer<'a>) -> Self {
         Self {
             lex,
             peeked: None,
@@ -79,7 +79,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn next_token(&mut self) -> Option<lexer::LexResult<'a>> {
+    fn next_token(&mut self) -> Option<LexResult<'a>> {
         if self.peeked.is_some() {
             core::mem::take(&mut self.peeked)
         } else {
@@ -87,7 +87,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn peek_next(&mut self) -> Option<lexer::LexResult<'a>> {
+    fn peek_next(&mut self) -> Option<LexResult<'a>> {
         if self.peeked.is_none() {
             self.peeked = self.lex.next();
         }
@@ -105,7 +105,7 @@ impl<'a> Parser<'a> {
     fn wait_nl(&mut self) {
         while let Some(t) = self.next_token() {
             match t {
-                Ok(lexer::Token::Newline) => break,
+                Ok(Token::Newline) => break,
                 Ok(_) => {},
                 Err(e) => self.error(ParseError::LexError(e)),
             }
@@ -122,11 +122,11 @@ impl<'a> Parser<'a> {
 
     fn parse_operand_with(
         &mut self,
-        t: Option<lexer::LexResult<'a>>,
+        t: Option<LexResult<'a>>,
         ok: &'static OperandKind,
     ) -> Result<(RawOperand<'a>, Span), (ParseError, Span)> {
         match (t, ok) {
-            (Some(Ok(lexer::Token::Name(n))), _) => {
+            (Some(Ok(Token::Name(n))), _) => {
                 let r = self
                     .defines
                     .get(n)
@@ -146,25 +146,25 @@ impl<'a> Parser<'a> {
                     _ => Err((ParseError::InvalidOperand(ok), self.span())),
                 }
             },
-            (Some(Ok(lexer::Token::Reg(r))), OperandKind::Register | OperandKind::Any) => {
+            (Some(Ok(Token::Reg(r))), OperandKind::Register | OperandKind::Any) => {
                 Ok((RawOperand::Register(r), self.span()))
             },
-            (Some(Ok(lexer::Token::Integer(i))), OperandKind::Immediate | OperandKind::Any) => {
+            (Some(Ok(Token::Integer(i))), OperandKind::Immediate | OperandKind::Any) => {
                 Ok((RawOperand::Immediate(Immediate::Value(i)), self.span()))
             },
-            (Some(Ok(lexer::Token::Heap(h))), OperandKind::Immediate | OperandKind::Any) => {
+            (Some(Ok(Token::Heap(h))), OperandKind::Immediate | OperandKind::Any) => {
                 Ok((RawOperand::Heap(h), self.span()))
             },
-            (Some(Ok(lexer::Token::Macro(m))), OperandKind::Immediate | OperandKind::Any) => Ok((
+            (Some(Ok(Token::Macro(m))), OperandKind::Immediate | OperandKind::Any) => Ok((
                 RawOperand::MacroImm(
                     MacroImm::from_str(m).map_err(|_| (ParseError::UnknownMacro, self.span()))?,
                 ),
                 self.span(),
             )),
-            (Some(Ok(lexer::Token::Label(l))), OperandKind::Immediate | OperandKind::Any) => {
+            (Some(Ok(Token::Label(l))), OperandKind::Immediate | OperandKind::Any) => {
                 Ok((RawOperand::Label(l), self.span()))
             },
-            (Some(Ok(lexer::Token::Relative(r))), OperandKind::Immediate | OperandKind::Any) => {
+            (Some(Ok(Token::Relative(r))), OperandKind::Immediate | OperandKind::Any) => {
                 Ok((
                     RawOperand::Immediate(Immediate::InstLoc(
                         (Integer::from(self.instructions.len()) + r)
@@ -174,7 +174,7 @@ impl<'a> Parser<'a> {
                     self.span(),
                 ))
             },
-            (Some(Ok(lexer::Token::Port(p))), OperandKind::Immediate | OperandKind::Any) => Ok((
+            (Some(Ok(Token::Port(p))), OperandKind::Immediate | OperandKind::Any) => Ok((
                 RawOperand::Immediate(Immediate::Value((p as usize).into())),
                 self.span(),
             )),
@@ -191,7 +191,7 @@ impl<'a> Parser<'a> {
         nth: usize,
         i: &InstProperties,
     ) {
-        if matches!(self.peek_next(), Some(Ok(lexer::Token::Newline)) | None) {
+        if matches!(self.peek_next(), Some(Ok(Token::Newline)) | None) {
             *errors = true;
             self.error(ParseError::UnexpectedNewline);
         }
@@ -272,7 +272,7 @@ impl<'a> Parser<'a> {
     }
 
     fn expect_nl(&mut self) {
-        if !matches!(self.peek_next(), Some(Ok(lexer::Token::Newline)) | None) {
+        if !matches!(self.peek_next(), Some(Ok(Token::Newline)) | None) {
             self.error(ParseError::ExpectedNewline);
             self.wait_nl();
         }
@@ -283,26 +283,26 @@ impl<'a> Parser<'a> {
 
         while let Some(t) = self.next_token() {
             match t {
-                Ok(lexer::Token::SqBrStart) => {
+                Ok(Token::SqBrStart) => {
                     if in_sq_bracket {
                         self.error(ParseError::UnexpectedToken);
                     }
 
                     in_sq_bracket = true;
                 },
-                Ok(lexer::Token::SqBrEnd) => {
+                Ok(Token::SqBrEnd) => {
                     if !in_sq_bracket {
                         self.error(ParseError::UnexpectedToken);
                     }
 
                     in_sq_bracket = false;
                 },
-                Ok(lexer::Token::Newline) => {
+                Ok(Token::Newline) => {
                     if !in_sq_bracket {
                         break;
                     }
                 },
-                Ok(lexer::Token::String(s)) => {
+                Ok(Token::String(s)) => {
                     for c in s.iter() {
                         self.dw.push((
                             RawOperand::Immediate(Immediate::Value((*c).into())),
@@ -325,11 +325,9 @@ impl<'a> Parser<'a> {
         while let Some(t) = self.next_token() {
             self.start = self.span().start;
             match t {
-                Ok(lexer::Token::Name(n) | lexer::Token::Macro(n))
-                    if n.eq_ignore_ascii_case("bits") =>
-                {
+                Ok(t) if t.is_macro_or_name("bits") => {
                     if let Some(Ok(
-                        lexer::Token::CmpLe | lexer::Token::CmpGe | lexer::Token::CmpEq,
+                        Token::CmpLe | Token::CmpGe | Token::CmpEq,
                     )) = self.peek_next()
                     {
                         self.next_token();
@@ -343,9 +341,7 @@ impl<'a> Parser<'a> {
                         self.expect_nl();
                     }
                 },
-                Ok(lexer::Token::Name(n) | lexer::Token::Macro(n))
-                    if n.eq_ignore_ascii_case("minreg") =>
-                {
+                Ok(t) if t.is_macro_or_name("minreg") => {
                     if self.registers.is_some() {
                         self.total_span_error(ParseError::ItemRedefined);
                         self.wait_nl();
@@ -354,9 +350,7 @@ impl<'a> Parser<'a> {
                         self.expect_nl();
                     }
                 },
-                Ok(lexer::Token::Name(n) | lexer::Token::Macro(n))
-                    if n.eq_ignore_ascii_case("minstack") =>
-                {
+                Ok(t) if t.is_macro_or_name("minstack") => {
                     if self.min_stack.is_some() {
                         self.total_span_error(ParseError::ItemRedefined);
                         self.wait_nl();
@@ -365,9 +359,7 @@ impl<'a> Parser<'a> {
                         self.expect_nl();
                     }
                 },
-                Ok(lexer::Token::Name(n) | lexer::Token::Macro(n))
-                    if n.eq_ignore_ascii_case("minheap") =>
-                {
+                Ok(t) if t.is_macro_or_name("minheap") => {
                     if self.min_heap.is_some() {
                         self.total_span_error(ParseError::ItemRedefined);
                         self.wait_nl();
@@ -376,7 +368,7 @@ impl<'a> Parser<'a> {
                         self.expect_nl();
                     }
                 },
-                Ok(lexer::Token::Name(n)) if n.eq_ignore_ascii_case("dw") => {
+                Ok(t) if t.is_name("dw") => {
                     pending_labels.iter().for_each(|i| {
                         self.labels
                             .insert(i, Immediate::Value(self.dw.len().into()));
@@ -384,9 +376,9 @@ impl<'a> Parser<'a> {
                     pending_labels.clear();
                     self.parse_add_dw();
                 },
-                Ok(lexer::Token::Macro(n)) if n.eq_ignore_ascii_case("define") => {
+                Ok(t) if t.is_macro("define") => {
                     match self.next_token() {
-                        Some(Ok(lexer::Token::Name(n))) => {
+                        Some(Ok(Token::Name(n))) => {
                             let _ = self.parse_operand(&OperandKind::Any).map(|v| {
                                 self.defines.insert(n, v);
                             });
@@ -405,15 +397,15 @@ impl<'a> Parser<'a> {
                         },
                     }
                 },
-                Ok(lexer::Token::Macro(n)) if n.eq_ignore_ascii_case("port_v2") => {
+                Ok(t) if t.is_macro("port_v2") => {
                     self.expect_nl();
                     self.port_v2 = true;
                 },
-                Ok(lexer::Token::Macro(_)) => {
+                Ok(Token::Macro(_)) => {
                     self.wait_nl();
                     self.error(ParseError::UnknownMacro);
                 },
-                Ok(lexer::Token::Name(n)) => {
+                Ok(Token::Name(n)) => {
                     pending_labels.iter().for_each(|i| {
                         self.labels
                             .insert(i, Immediate::InstLoc(self.instructions.len()));
@@ -423,7 +415,7 @@ impl<'a> Parser<'a> {
                         self.instructions.push((i, self.total_span()));
                     }
                 },
-                Ok(lexer::Token::Label(l)) => {
+                Ok(Token::Label(l)) => {
                     if self.labels.contains_key(l) || pending_labels.contains(&l) {
                         self.error(ParseError::ItemRedefined);
                         self.wait_nl();
@@ -432,7 +424,7 @@ impl<'a> Parser<'a> {
                         self.expect_nl();
                     }
                 },
-                Ok(lexer::Token::Newline) => {},
+                Ok(Token::Newline) => {},
                 Ok(_) => self.error(ParseError::UnexpectedToken),
                 Err(e) => self.error(ParseError::LexError(e)),
             }
