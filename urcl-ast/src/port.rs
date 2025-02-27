@@ -1,4 +1,4 @@
-#[derive(Debug, Clone, strum::EnumString, strum::FromRepr)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, strum::EnumString, strum::FromRepr)]
 #[strum(ascii_case_insensitive)]
 pub enum Port {
     // general

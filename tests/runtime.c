@@ -16,7 +16,8 @@ void urcl_out(uint8_t port, urcl_t *data);
 void urcl_in(urcl_t *ret, uint8_t port) {
     switch (port) {
         default: {
-            printf("\x1b[1;33mW:\x1b[0m unknown port %%%lu was read\n", port);
+            printf("\x1b[1;33mW:\x1b[0m unknown port %%%hhu was read\n", port);
+            *ret = 0;
             return;
         }
     }
@@ -33,7 +34,7 @@ void urcl_out(uint8_t port, urcl_t *data) {
             t_case += 1;
 
             if (*data != 0) {
-                printf("\x1b[1;31mE:\x1b[0m test %i case %i failed (returned %lu)\n", test_no, t_case, *data);
+                printf("\x1b[1;31mE:\x1b[0m test %i case %i failed (returned %lu)\n", test_no, t_case, (uint64_t) *data);
                 failed += 1;
             }
 
@@ -41,7 +42,7 @@ void urcl_out(uint8_t port, urcl_t *data) {
         }
         case 24: {
             if ((int) *data != t_case) {
-                printf("\x1b[1;31mE:\x1b[0m test %i failed (expected %lu cases, ran %i instead)\n", test_no, *data, t_case);
+                printf("\x1b[1;31mE:\x1b[0m test %i failed (expected %lu cases, ran %i instead)\n", test_no, (uint64_t) *data, t_case);
                 failed += 1;
             }
             break;
@@ -51,7 +52,7 @@ void urcl_out(uint8_t port, urcl_t *data) {
             break;
         }
         default: {
-            printf("\x1b[1;33mW:\x1b[0m unknown port %%%lu was written to with %lu\n", port, *data);
+            printf("\x1b[1;33mW:\x1b[0m unknown port %%%hhu was written to with %lu\n", port, (uint64_t) *data);
             break;
         }
     }

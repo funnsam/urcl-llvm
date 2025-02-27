@@ -7,7 +7,7 @@ use urcl_ast::{Port, Register};
 pub type Lexer<'a> = logos::Lexer<'a, Token<'a>>;
 pub type LexResult<'a> = Result<Token<'a>, ()>;
 
-#[derive(Debug, Clone, logos::Logos, strum::EnumTryAs)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, logos::Logos, strum::EnumTryAs)]
 #[logos(skip r"\s")]
 #[logos(skip r"//[^\n]*")]
 pub enum Token<'a> {
@@ -25,8 +25,8 @@ pub enum Token<'a> {
     Heap(Integer),
     #[regex(r"\~[\+\-]?(\d+|0b[01]+|0o[0-7]+|0x[0-9a-fA-F]+)", callback = |lex| parse_int(&lex.slice()[1..]))]
     Relative(Integer),
-    #[regex(r"\d+\.\d*", callback = |lex| lex.slice().parse().ok())]
-    Float(Decimal),
+    #[regex(r"\d+\.\d*", callback = |lex| Some(lex.slice().parse::<Decimal>().ok()?.into()))]
+    Float(DecimalHash),
 
     #[regex(r#""([^"]|\\")*""#, callback = |lex| parse_str(&lex.slice()[1..]))]
     String(Vec<u32>),
@@ -139,5 +139,41 @@ impl<'a> Token<'a> {
         } else {
             false
         }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DecimalHash(Decimal);
+
+impl core::hash::Hash for DecimalHash {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        self.repr().significand().hash(state);
+        self.repr().exponent().hash(state);
+    }
+}
+
+impl From<Decimal> for DecimalHash {
+    fn from(value: Decimal) -> Self {
+        Self(value)
+    }
+}
+
+impl From<DecimalHash> for Decimal {
+    fn from(value: DecimalHash) -> Self {
+        value.0
+    }
+}
+
+impl core::ops::Deref for DecimalHash {
+    type Target = Decimal;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl core::ops::DerefMut for DecimalHash {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
