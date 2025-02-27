@@ -1,5 +1,8 @@
-use inkwell::{debug_info::AsDIScope, *};
-use urcl_ast::*;
+use inkwell::{
+    AddressSpace, IntPredicate, basic_block, builder, context, debug_info, debug_info::AsDIScope,
+    intrinsics, module, passes, support, targets, types, values,
+};
+use urcl_ast::{Any, Immediate, Instruction, Program, Register};
 
 pub use inkwell::{OptimizationLevel, targets::FileType};
 
@@ -10,6 +13,7 @@ impl Default for CodegenContext {
 }
 
 impl CodegenContext {
+    #[must_use]
     pub fn new() -> Self { Self(context::Context::create()) }
 }
 
@@ -35,6 +39,7 @@ pub struct Codegen<'a> {
 }
 
 impl<'a> Codegen<'a> {
+    #[must_use]
     pub fn new(
         context: &'a CodegenContext,
         program: &'a Program,
@@ -149,8 +154,8 @@ impl<'a> Codegen<'a> {
             _ => panic!("invalid float bit width"),
         };
 
-        let di_word_t = self.di_basic_type("urcl_t", self.program.bits as _);
-        let di_mach_t = self.di_basic_type("size_t", mach_t.get_bit_width() as _);
+        let di_word_t = self.di_basic_type("urcl_t", self.program.bits.into());
+        let di_mach_t = self.di_basic_type("size_t", mach_t.get_bit_width().into());
 
         let ram_size =
             self.program.min_stack + self.program.heap_size + self.program.dw.len() as u64;
@@ -158,8 +163,9 @@ impl<'a> Codegen<'a> {
 
         let di_ram_t = self.di_builder.create_array_type(
             di_word_t.as_type(),
-            self.program.bits as u64 * ram_size,
+            u64::from(self.program.bits) * ram_size,
             0,
+            #[allow(clippy::single_range_in_vec_init)]
             &[0..ram_size as i64],
         );
 
@@ -170,7 +176,7 @@ impl<'a> Codegen<'a> {
         let native_addr = self.options.native_addr && self.program.bits >= mach_t.get_bit_width();
 
         let zext_or_trunc = |i: values::IntValue<'a>, t: types::IntType<'a>| {
-            use core::cmp::Ordering::*;
+            use core::cmp::Ordering::{Equal, Greater, Less};
             match i.get_type().get_bit_width().cmp(&t.get_bit_width()) {
                 Greater => self.builder.build_int_truncate(i, t, "conv_trunc").unwrap(),
                 Less => self.builder.build_int_z_extend(i, t, "conv_zext").unwrap(),
@@ -341,14 +347,14 @@ impl<'a> Codegen<'a> {
             self.builder.set_current_debug_location(loc);
 
             let indir_jump_to = |v: values::IntValue| {
-                if !native_addr {
+                if native_addr {
+                    let v = self.builder.build_int_to_ptr(v, ptr_t, "target").unwrap();
+                    self.builder.build_indirect_branch(v, &inst_bb).unwrap();
+                } else {
                     self.builder.build_store(big_switch_to, v).unwrap();
                     self.builder
                         .build_unconditional_branch(big_switch_bb)
                         .unwrap();
-                } else {
-                    let v = self.builder.build_int_to_ptr(v, ptr_t, "target").unwrap();
-                    self.builder.build_indirect_branch(v, &inst_bb).unwrap();
                 }
             };
 
@@ -727,7 +733,7 @@ impl<'a> Codegen<'a> {
                     let s = self.builder
                         .build_right_shift(
                             a,
-                            self.word.const_int((self.program.bits - 1) as _, false),
+                            self.word.const_int((self.program.bits - 1).into(), false),
                             false,
                             "brn_sign",
                         )
@@ -740,7 +746,7 @@ impl<'a> Codegen<'a> {
                     let s = self.builder
                         .build_right_shift(
                             a,
-                            self.word.const_int((self.program.bits - 1) as _, false),
+                            self.word.const_int((self.program.bits - 1).into(), false),
                             false,
                             "brp_sign",
                         )
@@ -757,12 +763,12 @@ impl<'a> Codegen<'a> {
                 },
                 Instruction::Pop(d) => gen!(none d pop),
                 Instruction::Cal(a) => {
-                    push(if !native_addr {
-                        self.word.const_int(pc as u64 + 1, false)
-                    } else {
+                    push(if native_addr {
                         unsafe { inst_bb[pc + 1].get_address() }
                             .unwrap()
                             .const_to_int(self.word)
+                    } else {
+                        self.word.const_int(pc as u64 + 1, false)
                     });
                     uncond_br(a);
                 },
@@ -793,7 +799,7 @@ impl<'a> Codegen<'a> {
                             .build_extract_value(add, 1, "brc")
                             .unwrap()
                             .into_int_value()
-                    })
+                    });
                 },
                 Instruction::Bnc(d, a, b) => {
                     gen!(2bc d a b |a: values::IntValue<'a>, b: values::IntValue<'a>| {
@@ -815,7 +821,7 @@ impl<'a> Codegen<'a> {
                         self.builder
                             .build_not(ov, "bnc")
                             .unwrap()
-                    })
+                    });
                 },
                 Instruction::Mlt(d, a, b) => gen!(2op d a b |a, b| {
                     self.builder.build_int_mul(a, b, "mul").unwrap()
@@ -873,7 +879,7 @@ impl<'a> Codegen<'a> {
                             .build_extract_value(add, 1, "brc")
                             .unwrap()
                             .into_int_value()
-                    })
+                    });
                 },
                 Instruction::SetNc(d, a, b) => {
                     gen!(2set d a b |a: values::IntValue<'a>, b: values::IntValue<'a>| {
@@ -895,7 +901,7 @@ impl<'a> Codegen<'a> {
                         self.builder
                             .build_not(ov, "bnc")
                             .unwrap()
-                    })
+                    });
                 },
                 Instruction::LLod(d, a, b) => gen!(2op d a b |a, b| {
                     let addr = self.builder.build_int_add(a, b, "llod_addr").unwrap();
@@ -979,7 +985,7 @@ impl<'a> Codegen<'a> {
                     let a = self.builder.build_int_z_extend(a, ext_t, "umlt_a_zext").unwrap();
                     let b = self.builder.build_int_z_extend(b, ext_t, "umlt_b_zext").unwrap();
                     let r = self.builder.build_int_mul(a, b, "umlt_mlt").unwrap();
-                    let s = self.builder.build_right_shift(r, ext_t.const_int(self.program.bits as _, false), false, "uml_rsh").unwrap();
+                    let s = self.builder.build_right_shift(r, ext_t.const_int(self.program.bits.into(), false), false, "uml_rsh").unwrap();
                     self.builder.build_int_truncate(s, self.word, "umlt_trunc").unwrap()
                 }),
                 Instruction::SUmlt(d, a, b) => gen!(2op d a b |a, b| {
@@ -987,7 +993,7 @@ impl<'a> Codegen<'a> {
                     let a = self.builder.build_int_s_extend(a, ext_t, "sumlt_a_sext").unwrap();
                     let b = self.builder.build_int_s_extend(b, ext_t, "sumlt_b_sext").unwrap();
                     let r = self.builder.build_int_mul(a, b, "sumlt_mlt").unwrap();
-                    let s = self.builder.build_right_shift(r, ext_t.const_int(self.program.bits as _, false), false, "suml_rsh").unwrap();
+                    let s = self.builder.build_right_shift(r, ext_t.const_int(self.program.bits.into(), false), false, "suml_rsh").unwrap();
                     self.builder.build_int_truncate(s, self.word, "sumlt_trunc").unwrap()
                 }),
                 Instruction::ItoF(d, a) => gen!(1op d a |a| {
@@ -1161,7 +1167,7 @@ impl<'a> Codegen<'a> {
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
             .status()
-            .map_or_else(|_| "".to_string(), |_| suffix);
+            .map_or_else(|_| String::new(), |_| suffix);
 
         let mut proc = std::process::Command::new("sh");
         let proc = proc.arg("-c").arg(format!(
@@ -1180,7 +1186,7 @@ impl<'a> Codegen<'a> {
             .trim_end()
             .to_string();
 
-        if s.chars().last().map_or(false, |c| c == ',') {
+        if s.ends_with(',') {
             s.pop();
         }
 

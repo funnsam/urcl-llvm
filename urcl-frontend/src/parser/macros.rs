@@ -2,7 +2,7 @@ use urcl_ast::OperandKind;
 
 use super::{Parser, error::ParseError};
 
-impl<'a> Parser<'a> {
+impl Parser<'_> {
     pub(crate) fn parse_macro(&mut self, name: &str) {
         match name {
             _ if name.eq_ignore_ascii_case("define") => match self.next_token() {

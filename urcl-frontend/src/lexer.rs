@@ -116,7 +116,7 @@ fn get_char_esc<I: Iterator<Item = char>>(iter: &mut I) -> Option<u32> {
     }
 }
 
-impl<'a> Token<'a> {
+impl Token<'_> {
     pub fn is_macro(&self, m: &str) -> bool {
         if let Token::Macro(t) = self {
             t.eq_ignore_ascii_case(m)

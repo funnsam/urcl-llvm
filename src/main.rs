@@ -82,7 +82,7 @@ fn main() {
     let target = urcl_llvm_backend::Codegen::get_machine(
         args.triple.as_deref(),
         args.features.as_deref(),
-        opt.clone(),
+        opt,
     );
 
     codegen.generate_code(&target, &|r: &core::ops::Range<usize>| {
