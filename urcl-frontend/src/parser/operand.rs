@@ -115,16 +115,16 @@ impl<'a> Parser<'a> {
                 Any::Immediate(Immediate::Value(heap_size.into()))
             },
             RawOperand::MacroImm(MacroImm::Max) => Any::Immediate(Immediate::Value(
-                (Integer::ONE << self.bits().to_usize().unwrap()) - 1,
+                self.bits_umax(),
             )),
             RawOperand::MacroImm(MacroImm::SMax) => Any::Immediate(Immediate::Value(
-                (Integer::ONE << (self.bits().to_usize().unwrap() - 1)) - 1,
+                self.bits_smax(),
             )),
             RawOperand::MacroImm(MacroImm::Msb) => Any::Immediate(Immediate::Value(
-                Integer::ONE << (self.bits().to_usize().unwrap() - 1),
+                self.bits_umsb(),
             )),
             RawOperand::MacroImm(MacroImm::SMsb) => Any::Immediate(Immediate::Value(
-                Integer::ONE << (self.bits().to_usize().unwrap() - 2),
+                self.bits_smsb(),
             )),
             RawOperand::MacroImm(MacroImm::UHalf | MacroImm::LHalf) => todo!(),
             RawOperand::Label(l) => Any::Immediate(self.labels.get(l).map_or_else(
@@ -138,5 +138,19 @@ impl<'a> Parser<'a> {
                 Any::Immediate(self.eval_macro_expr(mx, heap_size))
             },
         }
+    }
+
+    pub(crate) fn bits_umax(&self) -> Integer { (Integer::ONE << self.bits() as usize) - 1 }
+
+    pub(crate) fn bits_umsb(&self) -> Integer {
+        Integer::ONE << self.bits().saturating_sub(1) as usize
+    }
+
+    pub(crate) fn bits_smax(&self) -> Integer {
+        (Integer::ONE << self.bits().saturating_sub(1) as usize) - 1
+    }
+
+    pub(crate) fn bits_smsb(&self) -> Integer {
+        Integer::ONE << self.bits().saturating_sub(2) as usize
     }
 }

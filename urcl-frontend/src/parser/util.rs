@@ -17,11 +17,12 @@ macro_rules! expect_some_token {
 }
 
 macro_rules! expect_token {
-    ($self:tt $t:expr, $pat:pat => $stmt:expr) => {{
+    ($self:tt $t:expr, $pat:pat => $stmt:expr , $else:expr) => {{
         match $t {
             Ok($pat) => $stmt,
-            Ok(_) => $self.error(ParseError::UnexpectedToken),
-            Err(e) => $self.error(ParseError::LexError(e)),
+            #[allow(unreachable_patterns)]
+            Ok(_) => { $self.error(ParseError::UnexpectedToken); $else },
+            Err(e) => { $self.error(ParseError::LexError(e)); $else },
         }
     }};
 }
@@ -52,6 +53,13 @@ impl<'a> Parser<'a> {
 
     pub(crate) fn total_span_error(&mut self, err: ParseError) {
         self.errors.push((err, self.total_span()));
+    }
+
+    pub(crate) fn expect_nl(&mut self) {
+        if !matches!(self.peek_next(), Some(Ok(Token::Newline)) | None) {
+            self.error(ParseError::ExpectedNewline);
+            self.wait_nl();
+        }
     }
 
     pub(crate) fn wait_nl(&mut self) {
@@ -98,13 +106,6 @@ impl<'a> Parser<'a> {
     pub(crate) fn parse_u16(&mut self) -> u16 {
         let int = self.parse_int().to_u16();
         self.opt_unwrap_or_err_default(int, ParseError::InvalidValue)
-    }
-
-    pub(crate) fn expect_nl(&mut self) {
-        if !matches!(self.peek_next(), Some(Ok(Token::Newline)) | None) {
-            self.error(ParseError::ExpectedNewline);
-            self.wait_nl();
-        }
     }
 
     pub(crate) fn bits(&self) -> u32 { self.bits.unwrap_or(8) }

@@ -9,11 +9,15 @@ pub(crate) type RawOp<'a> = (super::operand::RawOperand<'a>, Span);
 #[derive(Debug, Clone)]
 pub(crate) enum MacroExpr<'a> {
     Add(RawOp<'a>, RawOp<'a>),
+    Nor(RawOp<'a>, RawOp<'a>),
 }
 
 macro_rules! eval {
     ($self:tt $hs:tt $($o:tt),* => $a:expr) => {{
-        Immediate::Value($a($($self.finalize_to_imm($o, $hs)),*))
+        $(
+            let $o = $self.finalize_to_imm($o, $hs);
+        )*
+        Immediate::Value($a($($o),*))
     }};
 }
 
@@ -32,6 +36,9 @@ impl<'a> Parser<'a> {
         match expr {
             MacroExpr::Add(a, b) => eval!(self heap_size a, b => |a, b| {
                 a + b
+            }),
+            MacroExpr::Nor(a, b) => eval!(self heap_size a, b => |a, b| {
+                self.bits_umax() - (a | b)
             }),
         }
     }
