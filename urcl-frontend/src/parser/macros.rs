@@ -44,8 +44,27 @@ impl Parser<'_> {
                     self.expect_nl();
                 }, self.wait_nl());
             },
+
             _ if name.eq_ignore_ascii_case("add") => expr!(self Add a, b),
+            _ if name.eq_ignore_ascii_case("sub") => expr!(self Sub a, b),
+            _ if name.eq_ignore_ascii_case("mlt") => expr!(self Mlt a, b),
+            _ if name.eq_ignore_ascii_case("umlt") => expr!(self Umlt a, b),
+            _ if name.eq_ignore_ascii_case("sumlt") => expr!(self SUmlt a, b),
+            _ if name.eq_ignore_ascii_case("div") => expr!(self Div a, b),
+            _ if name.eq_ignore_ascii_case("sdiv") => expr!(self Sdiv a, b),
+            _ if name.eq_ignore_ascii_case("mod") => expr!(self Mod a, b),
+            _ if name.eq_ignore_ascii_case("abs") => expr!(self Abs a),
+            _ if name.eq_ignore_ascii_case("bsl") => expr!(self Bsl a, b),
+            _ if name.eq_ignore_ascii_case("bsr") => expr!(self Bsr a, b),
+            _ if name.eq_ignore_ascii_case("bss") => expr!(self Bss a, b),
+            _ if name.eq_ignore_ascii_case("or") => expr!(self Or a, b),
             _ if name.eq_ignore_ascii_case("nor") => expr!(self Nor a, b),
+            _ if name.eq_ignore_ascii_case("and") => expr!(self And a, b),
+            _ if name.eq_ignore_ascii_case("nand") => expr!(self Nand a, b),
+            _ if name.eq_ignore_ascii_case("xor") => expr!(self Xor a, b),
+            _ if name.eq_ignore_ascii_case("xnor") => expr!(self Xnor a, b),
+            _ if name.eq_ignore_ascii_case("not") => expr!(self Not a),
+
             _ => {
                 self.error(ParseError::UnknownMacro);
                 self.wait_nl();

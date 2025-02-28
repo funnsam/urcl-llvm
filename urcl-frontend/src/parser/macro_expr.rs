@@ -30,6 +30,7 @@ pub(crate) enum MacroExpr<'a> {
     Xnor(RawOp<'a>, RawOp<'a>),
     Not(RawOp<'a>),
 
+    /*
     SetE(RawOp<'a>, RawOp<'a>),
     SetNe(RawOp<'a>, RawOp<'a>),
     SetG(RawOp<'a>, RawOp<'a>),
@@ -42,6 +43,7 @@ pub(crate) enum MacroExpr<'a> {
     SSetL(RawOp<'a>, RawOp<'a>),
     SSetGe(RawOp<'a>, RawOp<'a>),
     SSetLe(RawOp<'a>, RawOp<'a>),
+    */
 }
 
 macro_rules! eval {
@@ -49,7 +51,7 @@ macro_rules! eval {
         $(
             let $o = $self.finalize_to_nat($o, $hs);
         )*
-        Immediate::Value($a % $self.bits_vals())
+        Immediate::Value(Integer::from($a % $self.bits_vals()))
     }};
 }
 
@@ -79,15 +81,20 @@ impl<'a> Parser<'a> {
             M::Add(a, b) => eval!(self h a, b => a + b),
             M::Sub(a, b) => eval!(self h a, b => self.bits_vals() + a - b),
             M::Mlt(a, b) => eval!(self h a, b => a * b),
-            M::Umlt(a, b) => eval!(self h a, b => todo!()),
-            M::SUmlt(a, b) => eval!(self h a, b => todo!()),
+            // TODO:
+            M::Umlt(a, b) => eval!(self h a, b => a * b),
+            // TODO:
+            M::SUmlt(a, b) => eval!(self h a, b => a * b),
             M::Div(a, b) => eval!(self h a, b => a / b),
-            M::Sdiv(a, b) => eval!(self h a, b => todo!()),
+            // TODO:
+            M::Sdiv(a, b) => eval!(self h a, b => a / b),
             M::Mod(a, b) => eval!(self h a, b => a % b),
-            M::Abs(a) => eval!(self h a => todo!()),
+            // TODO:
+            M::Abs(a) => eval!(self h a => a),
             M::Bsl(a, b) => eval!(self h a, b => a << b.to_usize().unwrap()),
             M::Bsr(a, b) => eval!(self h a, b => a >> b.to_usize().unwrap()),
-            M::Bss(a, b) => eval!(self h a, b => todo!()),
+            // TODO:
+            M::Bss(a, b) => eval!(self h a, b => a),
 
             M::Or(a, b) => eval!(self h a, b => a | b),
             M::Nor(a, b) => eval!(self h a, b => self.bits_umax() - (a | b)),
@@ -97,6 +104,7 @@ impl<'a> Parser<'a> {
             M::Xnor(a, b) => eval!(self h a, b => self.bits_umax() - (a ^ b)),
             M::Not(a) => eval!(self h a => self.bits_umax() - a),
 
+            /*
             M::SetE(a, b) => eval!(self h a, b => todo!()),
             M::SetNe(a, b) => eval!(self h a, b => todo!()),
             M::SetG(a, b) => eval!(self h a, b => todo!()),
@@ -109,6 +117,7 @@ impl<'a> Parser<'a> {
             M::SSetL(a, b) => eval!(self h a, b => todo!()),
             M::SSetGe(a, b) => eval!(self h a, b => todo!()),
             M::SSetLe(a, b) => eval!(self h a, b => todo!()),
+            */
         }
     }
 }

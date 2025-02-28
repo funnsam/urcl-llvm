@@ -140,12 +140,12 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub(crate) fn bits_vals(&self) -> Natural { Integer::ONE << self.bits() as usize }
+    pub(crate) fn bits_vals(&self) -> Natural { Natural::ONE << self.bits() as usize }
 
-    pub(crate) fn bits_umax(&self) -> Natural { self.bits_vals() - 1 }
+    pub(crate) fn bits_umax(&self) -> Natural { self.bits_vals() - Natural::ONE }
 
     pub(crate) fn bits_umsb(&self) -> Natural {
-        Integer::ONE << self.bits().saturating_sub(1) as usize
+        Natural::ONE << self.bits().saturating_sub(1) as usize
     }
 
     pub(crate) fn bits_smax(&self) -> Integer {
