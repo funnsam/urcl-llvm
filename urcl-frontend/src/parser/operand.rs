@@ -1,6 +1,6 @@
 use core::str::FromStr;
 
-use dashu::Integer;
+use dashu::{Integer, Natural};
 use logos::Span;
 use num_traits::ToPrimitive;
 use urcl_ast::{Any, Immediate, OperandKind, Port, Register};
@@ -115,13 +115,13 @@ impl<'a> Parser<'a> {
                 Any::Immediate(Immediate::Value(heap_size.into()))
             },
             RawOperand::MacroImm(MacroImm::Max) => Any::Immediate(Immediate::Value(
-                self.bits_umax(),
+                self.bits_umax().into(),
             )),
             RawOperand::MacroImm(MacroImm::SMax) => Any::Immediate(Immediate::Value(
                 self.bits_smax(),
             )),
             RawOperand::MacroImm(MacroImm::Msb) => Any::Immediate(Immediate::Value(
-                self.bits_umsb(),
+                self.bits_umsb().into(),
             )),
             RawOperand::MacroImm(MacroImm::SMsb) => Any::Immediate(Immediate::Value(
                 self.bits_smsb(),
@@ -140,9 +140,11 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub(crate) fn bits_umax(&self) -> Integer { (Integer::ONE << self.bits() as usize) - 1 }
+    pub(crate) fn bits_vals(&self) -> Natural { Integer::ONE << self.bits() as usize }
 
-    pub(crate) fn bits_umsb(&self) -> Integer {
+    pub(crate) fn bits_umax(&self) -> Natural { self.bits_vals() - 1 }
+
+    pub(crate) fn bits_umsb(&self) -> Natural {
         Integer::ONE << self.bits().saturating_sub(1) as usize
     }
 
