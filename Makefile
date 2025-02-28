@@ -48,7 +48,7 @@ clean:
 	- find . -name "*.o" -delete
 	- rm $(shell ls benchmarks/*.urcl | cut -d . -f 1)
 	- rm $(shell ls examples/*.urcl | cut -d . -f 1)
-	- rm $(shell ls test/*.urcl | cut -d . -f 1)
+	- rm $(shell ls tests/*.urcl | cut -d . -f 1)
 	- rm urclos
 
 clean_tests:

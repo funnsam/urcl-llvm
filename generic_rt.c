@@ -4,7 +4,9 @@
 #include <locale.h>
 #include <time.h>
 
-typedef _BitInt(URCL_BITS) urcl_t;
+typedef unsigned _BitInt(URCL_BITS) urcl_t;
+typedef signed _BitInt(URCL_BITS) surcl_t;
+
 extern size_t urcl_main();
 void urcl_in(urcl_t *ret, uint8_t port);
 void urcl_out(uint8_t port, urcl_t *data);
@@ -50,7 +52,7 @@ void urcl_out(uint8_t port, urcl_t *data) {
             break;
         }
         case 24: {
-            printf("%li", (int64_t) *data);
+            printf("%li", (int64_t) (surcl_t) *data);
             break;
         }
         case 27: {

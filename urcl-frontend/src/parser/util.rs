@@ -6,6 +6,28 @@ use crate::lexer::{LexResult, Token};
 
 use super::{ParseError, Parser};
 
+macro_rules! expect_some_token {
+    ($self:tt $t:expr, $($rest:tt)*) => {{
+        if let Some(t) = $t {
+            $crate::parser::util::expect_token!($self t, $($rest)*);
+        } else {
+            $self.error(ParseError::UnexpectedEof);
+        }
+    }};
+}
+
+macro_rules! expect_token {
+    ($self:tt $t:expr, $pat:pat => $stmt:expr) => {{
+        match $t {
+            Ok($pat) => $stmt,
+            Ok(_) => $self.error(ParseError::UnexpectedToken),
+            Err(e) => $self.error(ParseError::LexError(e)),
+        }
+    }};
+}
+
+pub(crate) use {expect_some_token, expect_token};
+
 impl<'a> Parser<'a> {
     pub(crate) fn next_token(&mut self) -> Option<LexResult<'a>> {
         if self.peeked.is_some() {
@@ -89,4 +111,6 @@ impl<'a> Parser<'a> {
     pub(crate) fn registers(&self) -> u16 { self.registers.unwrap_or(8) }
     pub(crate) fn min_stack(&self) -> u64 { self.min_stack.unwrap_or(8) }
     pub(crate) fn min_heap(&self) -> u64 { self.min_heap.unwrap_or(16) }
+
+    pub(crate) fn feature(&self, f: &str) -> bool { self.features.contains(f) }
 }

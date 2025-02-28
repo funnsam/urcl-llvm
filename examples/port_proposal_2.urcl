@@ -3,6 +3,7 @@ minreg 1
 minheap 0
 minstack 0
 
-@port_v2
+@feature port_v2
+
 in%rng r1
 out%hex r1

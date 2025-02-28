@@ -1,9 +1,10 @@
 pub mod error;
+mod macro_expr;
 mod macros;
 mod operand;
 mod util;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::lexer::{LexResult, Lexer, Token};
 
@@ -29,13 +30,12 @@ pub struct Parser<'a> {
 
     labels: HashMap<&'a str, Immediate>,
     defines: HashMap<Token<'a>, (RawOperand<'a>, Span)>,
+    features: HashSet<&'a str>,
 
     instructions: Vec<(MidInst<'a>, Span)>,
     dw: Vec<(RawOperand<'a>, Span)>,
 
     errors: Vec<(ParseError, Span)>,
-
-    port_v2: bool,
 }
 
 #[derive(Debug, Clone, strum::EnumString)]
@@ -71,10 +71,9 @@ impl<'a> Parser<'a> {
 
             instructions: Vec::new(),
             dw: Vec::new(),
+            features: HashSet::new(),
 
             errors: Vec::new(),
-
-            port_v2: false,
         }
     }
 
@@ -108,7 +107,7 @@ impl<'a> Parser<'a> {
             ];
             let mut errors = false;
 
-            if let (true, Some(j)) = (self.port_v2, i.port_v2) {
+            if let (true, Some(j)) = (self.feature("port_v2"), i.port_v2) {
                 for nth in j.iter().copied() {
                     self.parse_inst_inner(&mut errors, &mut oprs, nth, &i);
                     if errors {

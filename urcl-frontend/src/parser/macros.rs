@@ -1,5 +1,7 @@
 use urcl_ast::OperandKind;
 
+use crate::{lexer::Token, parser::util::expect_some_token};
+
 use super::{Parser, error::ParseError};
 
 impl Parser<'_> {
@@ -20,13 +22,15 @@ impl Parser<'_> {
                     self.error(ParseError::UnexpectedEof);
                 },
             },
-            _ if name.eq_ignore_ascii_case("port_v2") => {
+            _ if name.eq_ignore_ascii_case("feature") => {
+                expect_some_token!(self self.next_token(), Token::Name(n) => {
+                    self.features.insert(n);
+                });
                 self.expect_nl();
-                self.port_v2 = true;
             },
             _ => {
-                self.wait_nl();
                 self.error(ParseError::UnknownMacro);
+                self.wait_nl();
             },
         }
     }
