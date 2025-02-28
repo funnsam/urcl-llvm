@@ -56,3 +56,12 @@ impl<'a> TryFrom<&'a Immediate> for u64 {
         }
     }
 }
+
+impl From<Immediate> for Integer {
+    fn from(v: Immediate) -> Self {
+        match v {
+            Immediate::Value(v) => v,
+            Immediate::InstLoc(l) => l.into(),
+        }
+    }
+}

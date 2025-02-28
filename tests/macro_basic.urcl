@@ -1,0 +1,76 @@
+bits 8
+
+minstack 2
+minheap 2
+
+@define case_result %numb
+@define test_cases %int
+@define test_end %text
+@define test_end_data '\n'
+@define total_tests %uint
+imm r1 1
+
+out total_tests 16
+
+// sub
+    @sub sub_test 5 5
+    out case_result sub_test
+out test_cases 1
+out test_end test_end_data
+imm r1 1
+
+// neg
+//     neg r1 0x69
+//     sub r1 r1 0x97
+//     out case_result r1
+// out test_cases 1
+// out test_end test_end_data
+// imm r1 1
+
+// and
+    @and and_test 5 3
+    sub r1 and_test 1
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1
+
+// or
+    @or or_test 5 3
+    sub r1 or_test 7
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1
+
+// not
+    @not not_test 128
+    sub r1 not_test 127
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1
+
+// xnor
+    @xnor xnor_test 5 3
+    sub r1 xnor_test 249
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1
+
+// xor
+    @xor xor_test 5 3
+    sub r1 xor_test 6
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1
+
+// nand
+    @nand nand_test 5 3
+    sub r1 nand_test 254
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1

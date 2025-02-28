@@ -11,9 +11,8 @@ use crate::lexer::{LexResult, Lexer, Token};
 use dashu::Integer;
 use error::ParseError;
 use logos::Span;
-use num_traits::ToPrimitive;
 use operand::RawOperand;
-use urcl_ast::{Any, Immediate, InstProperties, Instruction, OperandKind, Program};
+use urcl_ast::{Immediate, InstProperties, Instruction, OperandKind, Program};
 
 type MidInst<'a> = (&'a str, Vec<(RawOperand<'a>, Span)>, Span);
 
@@ -123,7 +122,7 @@ impl<'a> Parser<'a> {
                 }
             }
 
-            self.expect_nl();
+            if errors { self.wait_nl() } else { self.expect_nl() };
             (!errors).then_some((n, oprs, self.total_span())).ok_or(())
         } else {
             self.error(ParseError::UnknownInst);
@@ -266,7 +265,6 @@ impl<'a> Parser<'a> {
 
         let instructions = core::mem::take(&mut self.instructions);
         let dw = core::mem::take(&mut self.dw);
-        let dw_len = dw.len() as u128;
 
         let p = Program {
             bits: self.bits(),
@@ -283,7 +281,7 @@ impl<'a> Parser<'a> {
                         Instruction::construct(
                             i.0,
                             i.1.iter()
-                                .map(|i| self.finalize(i, dw_len, heap_size))
+                                .map(|i| self.finalize(i, heap_size))
                                 .collect(),
                         ),
                         span,
@@ -293,7 +291,7 @@ impl<'a> Parser<'a> {
             dw: dw
                 .iter()
                 .map(|i| {
-                    self.finalize(i, dw_len, heap_size)
+                    self.finalize(i, heap_size)
                         .try_as_immediate()
                         .unwrap()
                 })
@@ -304,49 +302,6 @@ impl<'a> Parser<'a> {
             Ok(p)
         } else {
             Err(self.errors)
-        }
-    }
-
-    fn finalize(&mut self, op: &(RawOperand, Span), dw_len: u128, heap_size: u64) -> Any {
-        match &op.0 {
-            RawOperand::Register(r) => Any::Register(r.clone()),
-            RawOperand::Immediate(i) => Any::Immediate(i.clone()),
-            RawOperand::Heap(h) => Any::Immediate(Immediate::Value(dw_len + h)),
-            RawOperand::MacroImm(MacroImm::Bits) => {
-                Any::Immediate(Immediate::Value(self.bits().into()))
-            },
-            RawOperand::MacroImm(MacroImm::MinReg) => {
-                Any::Immediate(Immediate::Value(self.registers().into()))
-            },
-            RawOperand::MacroImm(MacroImm::MinStack) => {
-                Any::Immediate(Immediate::Value(self.min_stack().into()))
-            },
-            RawOperand::MacroImm(MacroImm::MinHeap) => {
-                Any::Immediate(Immediate::Value(self.min_heap().into()))
-            },
-            RawOperand::MacroImm(MacroImm::Heap) => {
-                Any::Immediate(Immediate::Value(heap_size.into()))
-            },
-            RawOperand::MacroImm(MacroImm::Max) => Any::Immediate(Immediate::Value(
-                (Integer::ONE << self.bits().to_usize().unwrap()) - 1,
-            )),
-            RawOperand::MacroImm(MacroImm::SMax) => Any::Immediate(Immediate::Value(
-                (Integer::ONE << (self.bits().to_usize().unwrap() - 1)) - 1,
-            )),
-            RawOperand::MacroImm(MacroImm::Msb) => Any::Immediate(Immediate::Value(
-                Integer::ONE << (self.bits().to_usize().unwrap() - 1),
-            )),
-            RawOperand::MacroImm(MacroImm::SMsb) => Any::Immediate(Immediate::Value(
-                Integer::ONE << (self.bits().to_usize().unwrap() - 2),
-            )),
-            RawOperand::MacroImm(MacroImm::UHalf | MacroImm::LHalf) => todo!(),
-            RawOperand::Label(l) => Any::Immediate(self.labels.get(l).map_or_else(
-                || {
-                    self.errors.push((ParseError::UnknownLabel, op.1.clone()));
-                    Immediate::Value(Integer::ZERO)
-                },
-                |v| v.clone(),
-            )),
         }
     }
 }

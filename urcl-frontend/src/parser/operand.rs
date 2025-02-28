@@ -3,11 +3,11 @@ use core::str::FromStr;
 use dashu::Integer;
 use logos::Span;
 use num_traits::ToPrimitive;
-use urcl_ast::{Immediate, OperandKind, Port, Register};
+use urcl_ast::{Any, Immediate, OperandKind, Port, Register};
 
 use crate::lexer::{LexResult, Token};
 
-use super::{MacroImm, ParseError, Parser};
+use super::{macro_expr::MacroExpr, MacroImm, ParseError, Parser};
 
 #[derive(Debug, Clone)]
 pub(crate) enum RawOperand<'a> {
@@ -16,6 +16,7 @@ pub(crate) enum RawOperand<'a> {
     Heap(Integer),
     MacroImm(MacroImm),
     Label(&'a str),
+    MacroExpr(Box<MacroExpr<'a>>),
 }
 
 impl<'a> Parser<'a> {
@@ -90,6 +91,52 @@ impl<'a> Parser<'a> {
                 self.span(),
             )),
             _ => Err((ParseError::InvalidOperand(ok), self.span())),
+        }
+    }
+
+    pub(crate) fn finalize(&mut self, op: &(RawOperand<'a>, Span), heap_size: u64) -> Any {
+        match &op.0 {
+            RawOperand::Register(r) => Any::Register(r.clone()),
+            RawOperand::Immediate(i) => Any::Immediate(i.clone()),
+            RawOperand::Heap(h) => Any::Immediate(Immediate::Value(h + self.dw.len())),
+            RawOperand::MacroImm(MacroImm::Bits) => {
+                Any::Immediate(Immediate::Value(self.bits().into()))
+            },
+            RawOperand::MacroImm(MacroImm::MinReg) => {
+                Any::Immediate(Immediate::Value(self.registers().into()))
+            },
+            RawOperand::MacroImm(MacroImm::MinStack) => {
+                Any::Immediate(Immediate::Value(self.min_stack().into()))
+            },
+            RawOperand::MacroImm(MacroImm::MinHeap) => {
+                Any::Immediate(Immediate::Value(self.min_heap().into()))
+            },
+            RawOperand::MacroImm(MacroImm::Heap) => {
+                Any::Immediate(Immediate::Value(heap_size.into()))
+            },
+            RawOperand::MacroImm(MacroImm::Max) => Any::Immediate(Immediate::Value(
+                (Integer::ONE << self.bits().to_usize().unwrap()) - 1,
+            )),
+            RawOperand::MacroImm(MacroImm::SMax) => Any::Immediate(Immediate::Value(
+                (Integer::ONE << (self.bits().to_usize().unwrap() - 1)) - 1,
+            )),
+            RawOperand::MacroImm(MacroImm::Msb) => Any::Immediate(Immediate::Value(
+                Integer::ONE << (self.bits().to_usize().unwrap() - 1),
+            )),
+            RawOperand::MacroImm(MacroImm::SMsb) => Any::Immediate(Immediate::Value(
+                Integer::ONE << (self.bits().to_usize().unwrap() - 2),
+            )),
+            RawOperand::MacroImm(MacroImm::UHalf | MacroImm::LHalf) => todo!(),
+            RawOperand::Label(l) => Any::Immediate(self.labels.get(l).map_or_else(
+                || {
+                    self.errors.push((ParseError::UnknownLabel, op.1.clone()));
+                    Immediate::Value(Integer::ZERO)
+                },
+                |v| v.clone(),
+            )),
+            RawOperand::MacroExpr(mx) => {
+                Any::Immediate(self.eval_macro_expr(mx, heap_size))
+            },
         }
     }
 }
