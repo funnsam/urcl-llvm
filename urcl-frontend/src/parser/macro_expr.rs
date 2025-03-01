@@ -49,9 +49,9 @@ pub(crate) enum MacroExpr<'a> {
 macro_rules! eval {
     ($self:tt $hs:tt $($o:tt),* => $a:expr) => {{
         $(
-            let $o = $self.finalize_to_nat($o, $hs);
+            let $o = $self.finalize_to_nat($o, $hs) & $self.bits_umax();
         )*
-        Immediate::Value(Integer::from(Natural::from($a) % $self.bits_vals()))
+        Immediate::Value(Integer::from(Natural::from($a) & $self.bits_umax()))
     }};
 }
 
@@ -64,7 +64,7 @@ impl<'a> Parser<'a> {
                 if int.sign() == Sign::Positive {
                     int.into_parts().1
                 } else {
-                    self.bits_umax() - int.into_parts().1
+                    self.bits_vals() - int.into_parts().1 & self.bits_umax()
                 }
             },
             _ => {
@@ -75,7 +75,7 @@ impl<'a> Parser<'a> {
     }
 
     fn sign(&self, a: Natural) -> Integer {
-        let a = a % self.bits_vals();
+        let a = a & self.bits_umax();
 
         if a > self.bits_smax() {
             Integer::from_parts(Sign::Negative, self.bits_vals() - a)
@@ -88,7 +88,7 @@ impl<'a> Parser<'a> {
         if a.sign() == Sign::Positive {
             a.into_parts().1
         } else {
-            self.bits_vals() - a.into_parts().1 % self.bits_vals()
+            self.bits_vals() - a.into_parts().1 & self.bits_umax()
         }
     }
 
@@ -100,7 +100,7 @@ impl<'a> Parser<'a> {
             M::Add(a, b) => eval!(self h a, b => a + b),
             M::Sub(a, b) => eval!(self h a, b => self.bits_vals() + a - b),
             M::Mlt(a, b) => eval!(self h a, b => a * b),
-            M::Umlt(a, b) => eval!(self h a, b => (a * b) / self.bits_vals()),
+            M::Umlt(a, b) => eval!(self h a, b => (a * b) >> self.bits() as usize),
             M::SUmlt(a, b) => eval!(self h a, b => self.unsign(self.sign(a) * self.sign(b) >> self.bits() as usize)),
             M::Div(a, b) => eval!(self h a, b => a / b),
             M::Sdiv(a, b) => eval!(self h a, b => self.unsign(self.sign(a) / self.sign(b))),

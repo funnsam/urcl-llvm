@@ -1,0 +1,118 @@
+bits 8
+
+@define set_val 1
+
+@define case_result %numb
+@define test_cases %int
+@define test_end %text
+@define test_end_data '\n'
+@define total_tests %uint
+imm r1 1
+
+out total_tests 8
+
+// setge
+    @setge ge_test_1 69 69
+    sub r1 ge_test_1 set_val
+    out case_result r1
+
+    @setge ge_test_2 246 240
+    sub r1 ge_test_2 set_val
+    out case_result r1
+
+    @setge ge_test_3 240 246
+    out case_result ge_test_3
+out test_cases 3
+out test_end test_end_data
+
+// setl
+    @setl l_test_1 240 246
+    sub r1 l_test_1 set_val
+    out case_result r1
+
+    @setl l_test_2 246 240
+    out case_result l_test_2
+
+    @setl l_test_3 240 240
+    out case_result l_test_3
+out test_cases 3
+out test_end test_end_data
+imm r1 1
+
+// setg
+    @setg g_test_1 246 240
+    sub r1 g_test_1 set_val
+    out case_result r1
+
+    @setg g_test_2 240 246
+    out case_result g_test_2
+
+    @setg g_test_3 240 240
+    out case_result g_test_3
+out test_cases 3
+out test_end test_end_data
+imm r1 1
+
+// sete
+    @sete e_test_1 69 325
+    sub r1 e_test_1 set_val
+    out case_result r1
+
+    @sete e_test_2 69 42
+    out case_result e_test_2
+out test_cases 2
+out test_end test_end_data
+imm r1 1
+
+// setne
+    @setne ne_test_1 69 42
+    sub r1 ne_test_1 set_val
+    out case_result r1
+
+    @setne ne_test_2 69 325
+    out case_result ne_test_2
+out test_cases 2
+out test_end test_end_data
+imm r1 1
+
+// setle
+    @setle le_test_1 240 246
+    sub r1 le_test_1 set_val
+    out case_result r1
+
+    @setle le_test_2 246 240
+    out case_result le_test_2
+
+    @setle le_test_3 3 3
+    sub r1 le_test_3 set_val
+    out case_result r1
+out test_cases 3
+out test_end test_end_data
+imm r1 1
+
+// setc
+    @setc c_test_1 0xd9 0xcb
+    sub r1 c_test_1 set_val
+    out case_result r1
+
+    @setc c_test_2 4 8
+    out case_result c_test_2
+out test_cases 2
+out test_end test_end_data
+imm r1 1
+
+// setnc
+    @setnc nc_test_1 3 5
+    sub r1 nc_test_1 set_val
+    out case_result r1
+
+    @setnc nc_test_2 0xd8 0xcd
+    out case_result nc_test_2
+out test_cases 2
+out test_end test_end_data
+imm r1 1
+
+// ssetg
+// ssetl
+// ssetge
+// ssetle
