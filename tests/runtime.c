@@ -3,15 +3,12 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include "../api.h"
+
 int total_t = 0;
 int test_no = 1;
 int t_case = 0;
 int failed = 0;
-
-typedef _BitInt(URCL_BITS) urcl_t;
-extern size_t urcl_main();
-void urcl_in(urcl_t *ret, uint8_t port);
-void urcl_out(uint8_t port, urcl_t *data);
 
 void urcl_in(urcl_t *ret, uint8_t port) {
     switch (port) {
@@ -34,7 +31,7 @@ void urcl_out(uint8_t port, urcl_t *data) {
             t_case += 1;
 
             if (*data != 0) {
-                printf("\x1b[1;31mE:\x1b[0m test %i case %i failed (returned %lu)\n", test_no, t_case, (uint64_t) *data);
+                printf("\x1b[1;31mE:\x1b[0m test %i case %i failed (off by %li)\n", test_no, t_case, (int64_t) ((surcl_t) *data));
                 failed += 1;
             }
 

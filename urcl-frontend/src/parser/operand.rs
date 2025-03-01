@@ -118,13 +118,13 @@ impl<'a> Parser<'a> {
                 self.bits_umax().into(),
             )),
             RawOperand::MacroImm(MacroImm::SMax) => Any::Immediate(Immediate::Value(
-                self.bits_smax(),
+                self.bits_smax().into(),
             )),
             RawOperand::MacroImm(MacroImm::Msb) => Any::Immediate(Immediate::Value(
                 self.bits_umsb().into(),
             )),
             RawOperand::MacroImm(MacroImm::SMsb) => Any::Immediate(Immediate::Value(
-                self.bits_smsb(),
+                self.bits_smsb().into(),
             )),
             RawOperand::MacroImm(MacroImm::UHalf | MacroImm::LHalf) => todo!(),
             RawOperand::Label(l) => Any::Immediate(self.labels.get(l).map_or_else(
@@ -148,11 +148,11 @@ impl<'a> Parser<'a> {
         Natural::ONE << self.bits().saturating_sub(1) as usize
     }
 
-    pub(crate) fn bits_smax(&self) -> Integer {
-        (Integer::ONE << self.bits().saturating_sub(1) as usize) - 1
+    pub(crate) fn bits_smax(&self) -> Natural {
+        (Natural::ONE << self.bits().saturating_sub(1) as usize) - Natural::ONE
     }
 
-    pub(crate) fn bits_smsb(&self) -> Integer {
-        Integer::ONE << self.bits().saturating_sub(2) as usize
+    pub(crate) fn bits_smsb(&self) -> Natural {
+        Natural::ONE << self.bits().saturating_sub(2) as usize
     }
 }

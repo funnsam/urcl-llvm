@@ -74,27 +74,41 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn sign(&self, a: Natural) -> Integer {
+        let a = a % self.bits_vals();
+
+        if a > self.bits_smax() {
+            Integer::from_parts(Sign::Negative, self.bits_vals() - a)
+        } else {
+            Integer::from_parts(Sign::Positive, a)
+        }
+    }
+
+    fn unsign(&self, a: Integer) -> Natural {
+        if a.sign() == Sign::Positive {
+            a.into_parts().1
+        } else {
+            self.bits_vals() - a.into_parts().1 % self.bits_vals()
+        }
+    }
+
     pub(crate) fn eval_macro_expr(&mut self, expr: &MacroExpr<'a>, h: u64) -> Immediate {
         use MacroExpr as M;
+
 
         match expr {
             M::Add(a, b) => eval!(self h a, b => a + b),
             M::Sub(a, b) => eval!(self h a, b => self.bits_vals() + a - b),
             M::Mlt(a, b) => eval!(self h a, b => a * b),
-            // TODO:
-            M::Umlt(a, b) => eval!(self h a, b => a * b),
-            // TODO:
-            M::SUmlt(a, b) => eval!(self h a, b => a * b),
+            M::Umlt(a, b) => eval!(self h a, b => (a * b) / self.bits_vals()),
+            M::SUmlt(a, b) => eval!(self h a, b => self.unsign(self.sign(a) * self.sign(b) >> self.bits() as usize)),
             M::Div(a, b) => eval!(self h a, b => a / b),
-            // TODO:
-            M::Sdiv(a, b) => eval!(self h a, b => a / b),
+            M::Sdiv(a, b) => eval!(self h a, b => self.unsign(self.sign(a) / self.sign(b))),
             M::Mod(a, b) => eval!(self h a, b => a % b),
-            // TODO:
-            M::Abs(a) => eval!(self h a => a),
+            M::Abs(a) => eval!(self h a => self.sign(a).into_parts().1),
             M::Bsl(a, b) => eval!(self h a, b => a << b.to_usize().unwrap()),
             M::Bsr(a, b) => eval!(self h a, b => a >> b.to_usize().unwrap()),
-            // TODO:
-            M::Bss(a, b) => eval!(self h a, b => a),
+            M::Bss(a, b) => eval!(self h a, b => self.unsign(self.sign(a) >> b.to_usize().unwrap())),
 
             M::Or(a, b) => eval!(self h a, b => a | b),
             M::Nor(a, b) => eval!(self h a, b => self.bits_umax() - (a | b)),

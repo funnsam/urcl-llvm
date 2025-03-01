@@ -7,7 +7,8 @@ temp_bits := $(shell mktemp -u)
 
 test: $(shell ls tests/*.urcl | cut -d . -f 1)
 	for f in `echo "$^"`; do \
-		./$$f; \
+		echo $$f; \
+		./$$f || exit 1; \
 	done
 
 tests/runtime_%.o: tests/runtime.c

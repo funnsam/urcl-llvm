@@ -1,0 +1,109 @@
+bits 8
+
+@define case_result %numb
+@define test_cases %int
+@define test_end %text
+@define test_end_data '\n'
+@define total_tests %uint
+imm r1 1
+
+out total_tests 10
+
+// mlt
+    @mlt mlt_test 0x69 0x42
+    sub r1 mlt_test 18
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1
+
+// div (rounds towards 0)
+    @div div_test 250 3
+    sub r1 div_test 83
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1
+
+// mod
+    @mod mod_test 250 3
+    sub r1 mod_test 1
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 2
+
+// bsr
+    @bsr bsr_test 0x80 7
+    sub r1 bsr_test 1
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1
+
+// bsl
+    @bsl bsl_test 0x01 7
+    sub r1 bsl_test 0x80
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1
+
+// bss
+    @bss bss_test 0x80 7
+    sub r1 bss_test 0xff
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1
+
+// sete
+// setne
+// setg
+// setl
+// setge
+// setle
+// setc
+// setnc
+
+// sdiv (rounds towards 0)
+    @sdiv sdiv_test 250 3
+    sub r1 sdiv_test 254
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1
+
+// sbrl
+// sbrg
+// sble
+// sbge
+
+// ssetg
+// ssetl
+// ssetge
+// ssetle
+
+// abs
+    @abs abs_test 0x96
+    sub r1 abs_test 0x6a
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1
+
+// umlt
+    @umlt umlt_test 0x69 0x42
+    sub r1 umlt_test 0x1b
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1
+
+// sumlt
+    @sumlt sumlt_test 0x97 0x42
+    sub r1 sumlt_test 0xe4
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1
