@@ -1,0 +1,118 @@
+bits 8
+
+@define set_val @max
+
+@define case_result %numb
+@define test_cases %int
+@define test_end %text
+@define test_end_data '\n'
+@define total_tests %uint
+imm r1 1
+
+out total_tests 8
+
+// setge
+    setge r1 69 69
+    sub r1 r1 set_val
+    out case_result r1
+
+    setge r1 246 240
+    sub r1 r1 set_val
+    out case_result r1
+
+    setge r1 240 246
+    out case_result r1
+out test_cases 3
+out test_end test_end_data
+
+// setl
+    setl r1 240 246
+    sub r1 r1 set_val
+    out case_result r1
+
+    setl r1 246 240
+    out case_result r1
+
+    setl r1 240 240
+    out case_result r1
+out test_cases 3
+out test_end test_end_data
+imm r1 1
+
+// setg
+    setg r1 246 240
+    sub r1 r1 set_val
+    out case_result r1
+
+    setg r1 240 246
+    out case_result r1
+
+    setg r1 240 240
+    out case_result r1
+out test_cases 3
+out test_end test_end_data
+imm r1 1
+
+// sete
+    sete r1 69 325
+    sub r1 r1 set_val
+    out case_result r1
+
+    sete r1 69 42
+    out case_result r1
+out test_cases 2
+out test_end test_end_data
+imm r1 1
+
+// setne
+    setne r1 69 42
+    sub r1 r1 set_val
+    out case_result r1
+
+    setne r1 69 325
+    out case_result r1
+out test_cases 2
+out test_end test_end_data
+imm r1 1
+
+// setle
+    setle r1 240 246
+    sub r1 r1 set_val
+    out case_result r1
+
+    setle r1 246 240
+    out case_result r1
+
+    setle r1 3 3
+    sub r1 r1 set_val
+    out case_result r1
+out test_cases 3
+out test_end test_end_data
+imm r1 1
+
+// setc
+    setc r1 0xd9 0xcb
+    sub r1 r1 set_val
+    out case_result r1
+
+    setc r1 4 8
+    out case_result r1
+out test_cases 2
+out test_end test_end_data
+imm r1 1
+
+// setnc
+    setnc r1 3 5
+    sub r1 r1 set_val
+    out case_result r1
+
+    setnc r1 0xd8 0xcd
+    out case_result r1
+out test_cases 2
+out test_end test_end_data
+imm r1 1
+
+// ssetg
+// ssetl
+// ssetge
+// ssetle

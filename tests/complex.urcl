@@ -65,15 +65,6 @@ out test_cases 1
 out test_end test_end_data
 imm r1 1
 
-// sete
-// setne
-// setg
-// setl
-// setge
-// setle
-// setc
-// setnc
-
 // llod (and also default minheap)
     str m15 0x69
     llod r1 m3 12
@@ -104,11 +95,6 @@ imm r1 1
 // sbrg
 // sble
 // sbge
-
-// ssetg
-// ssetl
-// ssetge
-// ssetle
 
 // abs
     abs r1 0x96

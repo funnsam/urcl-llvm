@@ -30,7 +30,6 @@ pub(crate) enum MacroExpr<'a> {
     Xnor(RawOp<'a>, RawOp<'a>),
     Not(RawOp<'a>),
 
-    /*
     SetE(RawOp<'a>, RawOp<'a>),
     SetNe(RawOp<'a>, RawOp<'a>),
     SetG(RawOp<'a>, RawOp<'a>),
@@ -39,6 +38,7 @@ pub(crate) enum MacroExpr<'a> {
     SetLe(RawOp<'a>, RawOp<'a>),
     SetC(RawOp<'a>, RawOp<'a>),
     SetNc(RawOp<'a>, RawOp<'a>),
+    /*
     SSetG(RawOp<'a>, RawOp<'a>),
     SSetL(RawOp<'a>, RawOp<'a>),
     SSetGe(RawOp<'a>, RawOp<'a>),
@@ -51,7 +51,7 @@ macro_rules! eval {
         $(
             let $o = $self.finalize_to_nat($o, $hs);
         )*
-        Immediate::Value(Integer::from($a % $self.bits_vals()))
+        Immediate::Value(Integer::from(Natural::from($a) % $self.bits_vals()))
     }};
 }
 
@@ -118,15 +118,15 @@ impl<'a> Parser<'a> {
             M::Xnor(a, b) => eval!(self h a, b => self.bits_umax() - (a ^ b)),
             M::Not(a) => eval!(self h a => self.bits_umax() - a),
 
+            M::SetE(a, b) => eval!(self h a, b => a == b),
+            M::SetNe(a, b) => eval!(self h a, b => a != b),
+            M::SetG(a, b) => eval!(self h a, b => a > b),
+            M::SetL(a, b) => eval!(self h a, b => a < b),
+            M::SetGe(a, b) => eval!(self h a, b => a >= b),
+            M::SetLe(a, b) => eval!(self h a, b => a <= b),
+            M::SetC(a, b) => eval!(self h a, b => a + b > self.bits_umax()),
+            M::SetNc(a, b) => eval!(self h a, b => a + b <= self.bits_umax()),
             /*
-            M::SetE(a, b) => eval!(self h a, b => todo!()),
-            M::SetNe(a, b) => eval!(self h a, b => todo!()),
-            M::SetG(a, b) => eval!(self h a, b => todo!()),
-            M::SetL(a, b) => eval!(self h a, b => todo!()),
-            M::SetGe(a, b) => eval!(self h a, b => todo!()),
-            M::SetLe(a, b) => eval!(self h a, b => todo!()),
-            M::SetC(a, b) => eval!(self h a, b => todo!()),
-            M::SetNc(a, b) => eval!(self h a, b => todo!()),
             M::SSetG(a, b) => eval!(self h a, b => todo!()),
             M::SSetL(a, b) => eval!(self h a, b => todo!()),
             M::SSetGe(a, b) => eval!(self h a, b => todo!()),

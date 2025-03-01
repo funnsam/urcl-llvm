@@ -64,6 +64,20 @@ impl Parser<'_> {
             _ if name.eq_ignore_ascii_case("xor") => expr!(self Xor a, b),
             _ if name.eq_ignore_ascii_case("xnor") => expr!(self Xnor a, b),
             _ if name.eq_ignore_ascii_case("not") => expr!(self Not a),
+            _ if name.eq_ignore_ascii_case("sete") => expr!(self SetE a, b),
+            _ if name.eq_ignore_ascii_case("setne") => expr!(self SetNe a, b),
+            _ if name.eq_ignore_ascii_case("setg") => expr!(self SetG a, b),
+            _ if name.eq_ignore_ascii_case("setl") => expr!(self SetL a, b),
+            _ if name.eq_ignore_ascii_case("setge") => expr!(self SetGe a, b),
+            _ if name.eq_ignore_ascii_case("setle") => expr!(self SetLe a, b),
+            _ if name.eq_ignore_ascii_case("setc") => expr!(self SetC a, b),
+            _ if name.eq_ignore_ascii_case("setnc") => expr!(self SetNc a, b),
+            /*
+            _ if name.eq_ignore_ascii_case("ssetg") => expr!(self SSetG a, b),
+            _ if name.eq_ignore_ascii_case("ssetl") => expr!(self SSetL a, b),
+            _ if name.eq_ignore_ascii_case("ssetge") => expr!(self SSetGe a, b),
+            _ if name.eq_ignore_ascii_case("ssetle") => expr!(self SSetLe a, b),
+            */
 
             _ => {
                 self.error(ParseError::UnknownMacro);
