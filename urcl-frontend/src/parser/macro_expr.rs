@@ -3,7 +3,7 @@ use logos::Span;
 use num_traits::ToPrimitive;
 use urcl_ast::{Any, Immediate, OperandKind};
 
-use super::{error::ParseError, Parser};
+use super::{error::ParseError, operand::RawOperand, Parser};
 
 pub(crate) type RawOp<'a> = (super::operand::RawOperand<'a>, Span);
 
@@ -44,15 +44,6 @@ pub(crate) enum MacroExpr<'a> {
     SSetLe(RawOp<'a>, RawOp<'a>),
 }
 
-macro_rules! eval {
-    ($self:tt $hs:tt $($o:tt),* => $a:expr) => {{
-        $(
-            let $o = $self.finalize_to_nat($o, $hs) & $self.bits_umax();
-        )*
-        Immediate::Value(Integer::from(Natural::from($a) & $self.bits_umax()))
-    }};
-}
-
 impl<'a> Parser<'a> {
     fn finalize_to_nat(&mut self, op: &RawOp<'a>, heap_size: u64) -> Natural {
         match self.finalize(op, heap_size) {
@@ -90,44 +81,106 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub(crate) fn eval_macro_expr(&mut self, expr: &MacroExpr<'a>, h: u64) -> Immediate {
+    pub(crate) fn eval_macro_expr(&mut self, expr: &MacroExpr<'a>, heap_size: u64) -> Immediate {
         use MacroExpr as M;
 
+        macro_rules! eval {
+            ($($o:tt),* => $a:expr) => {{
+                $(
+                    let $o = self.finalize_to_nat($o, heap_size) & self.bits_umax();
+                )*
+                Immediate::Value(Integer::from(Natural::from($a) & self.bits_umax()))
+            }};
+        }
 
         match expr {
-            M::Add(a, b) => eval!(self h a, b => a + b),
-            M::Sub(a, b) => eval!(self h a, b => self.bits_vals() + a - b),
-            M::Mlt(a, b) => eval!(self h a, b => a * b),
-            M::Umlt(a, b) => eval!(self h a, b => (a * b) >> self.bits() as usize),
-            M::SUmlt(a, b) => eval!(self h a, b => self.unsign(self.sign(a) * self.sign(b) >> self.bits() as usize)),
-            M::Div(a, b) => eval!(self h a, b => a / b),
-            M::Sdiv(a, b) => eval!(self h a, b => self.unsign(self.sign(a) / self.sign(b))),
-            M::Mod(a, b) => eval!(self h a, b => a % b),
-            M::Abs(a) => eval!(self h a => self.sign(a).into_parts().1),
-            M::Bsl(a, b) => eval!(self h a, b => a << b.to_usize().unwrap()),
-            M::Bsr(a, b) => eval!(self h a, b => a >> b.to_usize().unwrap()),
-            M::Bss(a, b) => eval!(self h a, b => self.unsign(self.sign(a) >> b.to_usize().unwrap())),
+            M::Add(a, b) => eval!(a, b => a + b),
+            M::Sub(a, b) => eval!(a, b => self.bits_vals() + a - b),
+            M::Mlt(a, b) => eval!(a, b => a * b),
+            M::Umlt(a, b) => eval!(a, b => (a * b) >> self.bits() as usize),
+            M::SUmlt(a, b) => eval!(a, b => self.unsign(self.sign(a) * self.sign(b) >> self.bits() as usize)),
+            M::Div(a, b) => eval!(a, b => a / b),
+            M::Sdiv(a, b) => eval!(a, b => self.unsign(self.sign(a) / self.sign(b))),
+            M::Mod(a, b) => eval!(a, b => a % b),
+            M::Abs(a) => eval!(a => self.sign(a).into_parts().1),
+            M::Bsl(a, b) => eval!(a, b => a << b.to_usize().unwrap()),
+            M::Bsr(a, b) => eval!(a, b => a >> b.to_usize().unwrap()),
+            M::Bss(a, b) => eval!(a, b => self.unsign(self.sign(a) >> b.to_usize().unwrap())),
 
-            M::Or(a, b) => eval!(self h a, b => a | b),
-            M::Nor(a, b) => eval!(self h a, b => self.bits_umax() - (a | b)),
-            M::And(a, b) => eval!(self h a, b => a & b),
-            M::Nand(a, b) => eval!(self h a, b => self.bits_umax() - (a & b)),
-            M::Xor(a, b) => eval!(self h a, b => a ^ b),
-            M::Xnor(a, b) => eval!(self h a, b => self.bits_umax() - (a ^ b)),
-            M::Not(a) => eval!(self h a => self.bits_umax() - a),
+            M::Or(a, b) => eval!(a, b => a | b),
+            M::Nor(a, b) => eval!(a, b => self.bits_umax() - (a | b)),
+            M::And(a, b) => eval!(a, b => a & b),
+            M::Nand(a, b) => eval!(a, b => self.bits_umax() - (a & b)),
+            M::Xor(a, b) => eval!(a, b => a ^ b),
+            M::Xnor(a, b) => eval!(a, b => self.bits_umax() - (a ^ b)),
+            M::Not(a) => eval!(a => self.bits_umax() - a),
 
-            M::SetE(a, b) => eval!(self h a, b => a == b),
-            M::SetNe(a, b) => eval!(self h a, b => a != b),
-            M::SetG(a, b) => eval!(self h a, b => a > b),
-            M::SetL(a, b) => eval!(self h a, b => a < b),
-            M::SetGe(a, b) => eval!(self h a, b => a >= b),
-            M::SetLe(a, b) => eval!(self h a, b => a <= b),
-            M::SetC(a, b) => eval!(self h a, b => a + b > self.bits_umax()),
-            M::SetNc(a, b) => eval!(self h a, b => a + b <= self.bits_umax()),
-            M::SSetG(a, b) => eval!(self h a, b => self.sign(a) > self.sign(b)),
-            M::SSetL(a, b) => eval!(self h a, b => self.sign(a) < self.sign(b)),
-            M::SSetGe(a, b) => eval!(self h a, b => self.sign(a) >= self.sign(b)),
-            M::SSetLe(a, b) => eval!(self h a, b => self.sign(a) <= self.sign(b)),
+            M::SetE(a, b) => eval!(a, b => a == b),
+            M::SetNe(a, b) => eval!(a, b => a != b),
+            M::SetG(a, b) => eval!(a, b => a > b),
+            M::SetL(a, b) => eval!(a, b => a < b),
+            M::SetGe(a, b) => eval!(a, b => a >= b),
+            M::SetLe(a, b) => eval!(a, b => a <= b),
+            M::SetC(a, b) => eval!(a, b => a + b > self.bits_umax()),
+            M::SetNc(a, b) => eval!(a, b => a + b <= self.bits_umax()),
+            M::SSetG(a, b) => eval!(a, b => self.sign(a) > self.sign(b)),
+            M::SSetL(a, b) => eval!(a, b => self.sign(a) < self.sign(b)),
+            M::SSetGe(a, b) => eval!(a, b => self.sign(a) >= self.sign(b)),
+            M::SSetLe(a, b) => eval!(a, b => self.sign(a) <= self.sign(b)),
+        }
+    }
+
+    pub(crate) fn parse_macro_expr(&mut self, name: &str) -> Option<(MacroExpr<'a>, Span)> {
+        macro_rules! expr {
+            ($expr:tt $($op:tt),*) => {{
+                $(
+                    let $op = self.parse_operand(&OperandKind::Immediate)
+                    .map_or_else(
+                        |e| {
+                            let span = e.1.clone();
+                            self.errors.push(e);
+                            (RawOperand::Immediate(Immediate::InstLoc(0)), span)
+                        },
+                        |o| o,
+                    );
+                )*
+                Some((MacroExpr::$expr($($op),*), self.total_span()))
+            }};
+        }
+
+        match name.to_ascii_lowercase().as_str() {
+            "add" => expr!(Add a, b),
+            "sub" => expr!(Sub a, b),
+            "mlt" => expr!(Mlt a, b),
+            "umlt" => expr!(Umlt a, b),
+            "sumlt" => expr!(SUmlt a, b),
+            "div" => expr!(Div a, b),
+            "sdiv" => expr!(Sdiv a, b),
+            "mod" => expr!(Mod a, b),
+            "abs" => expr!(Abs a),
+            "bsl" => expr!(Bsl a, b),
+            "bsr" => expr!(Bsr a, b),
+            "bss" => expr!(Bss a, b),
+            "or" => expr!(Or a, b),
+            "nor" => expr!(Nor a, b),
+            "and" => expr!(And a, b),
+            "nand" => expr!(Nand a, b),
+            "xor" => expr!(Xor a, b),
+            "xnor" => expr!(Xnor a, b),
+            "not" => expr!(Not a),
+            "sete" => expr!(SetE a, b),
+            "setne" => expr!(SetNe a, b),
+            "setg" => expr!(SetG a, b),
+            "setl" => expr!(SetL a, b),
+            "setge" => expr!(SetGe a, b),
+            "setle" => expr!(SetLe a, b),
+            "setc" => expr!(SetC a, b),
+            "setnc" => expr!(SetNc a, b),
+            "ssetg" => expr!(SSetG a, b),
+            "ssetl" => expr!(SSetL a, b),
+            "ssetge" => expr!(SSetGe a, b),
+            "ssetle" => expr!(SSetLe a, b),
+            _ => None,
         }
     }
 }

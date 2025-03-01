@@ -14,7 +14,7 @@ pub enum Token<'a> {
     Integer(Integer),
     #[regex(r"\%(\d+|0b[01]+|0o[0-7]+|0x[0-9a-fA-F]+)", callback = |lex| parse_int(&lex.slice()[1..])?.to_u8(), priority = 999)]
     PortInt(u8),
-    #[regex(r"\%\S*", callback = |lex| &lex.slice()[1..])]
+    #[regex(r"\%[^\s/]+", callback = |lex| &lex.slice()[1..])]
     Port(&'a str),
     #[regex(r"[rR](\d+|0b[01]+|0o[0-7]+|0x[0-9a-fA-F]+)", callback = |lex| Some(Register::General(parse_int(&lex.slice()[1..])?.to_u16()?)))]
     #[token("pc", callback = |_| Register::Pc, ignore(ascii_case))]
@@ -30,11 +30,11 @@ pub enum Token<'a> {
     #[regex(r#""([^"]|\\")*""#, callback = |lex| parse_str(&lex.slice()[1..]))]
     String(Vec<u32>),
 
-    #[regex(r"[a-zA-Z_]\S*")]
+    #[regex(r"[a-zA-Z_][^\s/]*")]
     Name(&'a str),
-    #[regex(r"\@\S*", callback = |lex| Some(&lex.slice()[1..]))]
+    #[regex(r"\@[^\s/]+", callback = |lex| Some(&lex.slice()[1..]))]
     Macro(&'a str),
-    #[regex(r"\.\S*", callback = |lex| Some(&lex.slice()[1..]))]
+    #[regex(r"\.[^\s/]+", callback = |lex| Some(&lex.slice()[1..]))]
     Label(&'a str),
 
     #[token("\n", priority = 999)]

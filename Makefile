@@ -6,9 +6,10 @@ LD = gcc
 temp_bits := $(shell mktemp -u)
 
 test: $(shell ls tests/*.urcl | cut -d . -f 1)
-	for f in `echo "$^"`; do \
+	@for f in `echo "$^"`; do \
 		echo $$f; \
 		./$$f || exit 1; \
+		echo; \
 	done
 
 tests/runtime_%.o: tests/runtime.c
@@ -18,7 +19,7 @@ generic_rt_%.o: generic_rt.c
 	$(CC) $^ -c -o $@ $(CC_FLAGS) -DURCL_BITS=$*
 
 urclos_rt.o: urclos_rt.c
-	if [[ "$$(cat $(temp_bits))" != "16" ]]; then \
+	@if [[ "$$(cat $(temp_bits))" != "16" ]]; then \
 		echo assert failed: urclos is expected to be 16 bits; \
 		exit 1; \
 	fi
