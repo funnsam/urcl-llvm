@@ -31,7 +31,7 @@ void urcl_out(uint8_t port, urcl_t *data) {
             t_case += 1;
 
             if (*data != 0) {
-                printf("\x1b[1;31mE:\x1b[0m test %i case %i failed (off by %li)\n", test_no, t_case, (int64_t) ((surcl_t) *data));
+                printf("\x1b[1;31mE:\x1b[0m test %i case %i failed (off by %li)\n", test_no, t_case, (int64_t) -((surcl_t) *data));
                 failed += 1;
             }
 

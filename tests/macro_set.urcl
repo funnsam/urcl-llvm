@@ -1,6 +1,6 @@
 bits 8
 
-@define set_val 1
+@define set_val @max
 
 @define case_result %numb
 @define test_cases %int

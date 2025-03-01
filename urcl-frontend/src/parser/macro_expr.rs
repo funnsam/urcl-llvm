@@ -81,6 +81,10 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn set(&self, b: bool) -> Natural {
+        if b { self.bits_umax() } else { Natural::ZERO }
+    }
+
     pub(crate) fn eval_macro_expr(&mut self, expr: &MacroExpr<'a>, heap_size: u64) -> Immediate {
         use MacroExpr as M;
 
@@ -89,7 +93,7 @@ impl<'a> Parser<'a> {
                 $(
                     let $o = self.finalize_to_nat($o, heap_size) & self.bits_umax();
                 )*
-                Immediate::Value(Integer::from(Natural::from($a) & self.bits_umax()))
+                Immediate::Value(Integer::from($a & self.bits_umax()))
             }};
         }
 
@@ -115,18 +119,18 @@ impl<'a> Parser<'a> {
             M::Xnor(a, b) => eval!(a, b => self.bits_umax() - (a ^ b)),
             M::Not(a) => eval!(a => self.bits_umax() - a),
 
-            M::SetE(a, b) => eval!(a, b => a == b),
-            M::SetNe(a, b) => eval!(a, b => a != b),
-            M::SetG(a, b) => eval!(a, b => a > b),
-            M::SetL(a, b) => eval!(a, b => a < b),
-            M::SetGe(a, b) => eval!(a, b => a >= b),
-            M::SetLe(a, b) => eval!(a, b => a <= b),
-            M::SetC(a, b) => eval!(a, b => a + b > self.bits_umax()),
-            M::SetNc(a, b) => eval!(a, b => a + b <= self.bits_umax()),
-            M::SSetG(a, b) => eval!(a, b => self.sign(a) > self.sign(b)),
-            M::SSetL(a, b) => eval!(a, b => self.sign(a) < self.sign(b)),
-            M::SSetGe(a, b) => eval!(a, b => self.sign(a) >= self.sign(b)),
-            M::SSetLe(a, b) => eval!(a, b => self.sign(a) <= self.sign(b)),
+            M::SetE(a, b) => eval!(a, b => self.set(a == b)),
+            M::SetNe(a, b) => eval!(a, b => self.set(a != b)),
+            M::SetG(a, b) => eval!(a, b => self.set(a > b)),
+            M::SetL(a, b) => eval!(a, b => self.set(a < b)),
+            M::SetGe(a, b) => eval!(a, b => self.set(a >= b)),
+            M::SetLe(a, b) => eval!(a, b => self.set(a <= b)),
+            M::SetC(a, b) => eval!(a, b => self.set(a + b > self.bits_umax())),
+            M::SetNc(a, b) => eval!(a, b => self.set(a + b <= self.bits_umax())),
+            M::SSetG(a, b) => eval!(a, b => self.set(self.sign(a) > self.sign(b))),
+            M::SSetL(a, b) => eval!(a, b => self.set(self.sign(a) < self.sign(b))),
+            M::SSetGe(a, b) => eval!(a, b => self.set(self.sign(a) >= self.sign(b))),
+            M::SSetLe(a, b) => eval!(a, b => self.set(self.sign(a) <= self.sign(b))),
         }
     }
 
