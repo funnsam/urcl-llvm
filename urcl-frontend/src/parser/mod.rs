@@ -4,6 +4,7 @@ mod macros;
 mod operand;
 mod util;
 
+use core::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 
 use crate::lexer::{LexResult, Lexer, Token};
@@ -34,7 +35,7 @@ pub struct Parser<'a> {
     instructions: Vec<(MidInst<'a>, Span)>,
     dw: Vec<(RawOperand<'a>, Span)>,
 
-    errors: Vec<(ParseError, Span)>,
+    errors: RefCell<Vec<(ParseError, Span)>>,
 }
 
 #[derive(Debug, Clone, strum::EnumString)]
@@ -72,7 +73,7 @@ impl<'a> Parser<'a> {
             dw: Vec::new(),
             features: HashSet::new(),
 
-            errors: Vec::new(),
+            errors: RefCell::new(Vec::new()),
         }
     }
 
@@ -92,7 +93,7 @@ impl<'a> Parser<'a> {
         opr.map_or_else(
             |e| {
                 *errors = true;
-                self.errors.push(e);
+                self.error_at(e.0, e.1);
             },
             |o| oprs[nth] = o,
         );
@@ -165,7 +166,7 @@ impl<'a> Parser<'a> {
                 },
                 Ok(_) => match self.parse_operand_with_option(Some(t), &OperandKind::Immediate) {
                     Ok(w) => self.dw.push(w),
-                    Err(e) => self.errors.push(e),
+                    Err(e) => self.error_at(e.0, e.1),
                 },
                 Err(e) => self.error(ParseError::LexError(e)),
             }
@@ -264,7 +265,6 @@ impl<'a> Parser<'a> {
         );
 
         let instructions = core::mem::take(&mut self.instructions);
-        let dw = core::mem::take(&mut self.dw);
 
         let p = Program {
             bits: self.bits(),
@@ -288,7 +288,7 @@ impl<'a> Parser<'a> {
                     )
                 })
                 .collect(),
-            dw: dw
+            dw: self.dw
                 .iter()
                 .map(|i| {
                     self.finalize(i, heap_size)
@@ -298,10 +298,10 @@ impl<'a> Parser<'a> {
                 .collect(),
         };
 
-        if self.errors.is_empty() {
+        if self.errors.borrow().is_empty() {
             Ok(p)
         } else {
-            Err(self.errors)
+            Err(self.errors.into_inner())
         }
     }
 }

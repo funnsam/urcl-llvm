@@ -45,7 +45,7 @@ pub(crate) enum MacroExpr<'a> {
 }
 
 impl<'a> Parser<'a> {
-    fn finalize_to_nat(&mut self, op: &RawOp<'a>, heap_size: u64) -> Natural {
+    fn finalize_to_nat(&self, op: &RawOp<'a>, heap_size: u64) -> Natural {
         match self.finalize(op, heap_size) {
             Any::Immediate(i) => {
                 let int = Integer::from(i);
@@ -57,7 +57,7 @@ impl<'a> Parser<'a> {
                 }
             },
             _ => {
-                self.errors.push((ParseError::InvalidOperand(&OperandKind::Immediate), op.1.clone()));
+                self.error_at(ParseError::InvalidOperand(&OperandKind::Immediate), op.1.clone());
                 Natural::ONE
             },
         }
@@ -85,7 +85,7 @@ impl<'a> Parser<'a> {
         if b { self.bits_umax() } else { Natural::ZERO }
     }
 
-    pub(crate) fn eval_macro_expr(&mut self, expr: &MacroExpr<'a>, heap_size: u64) -> Immediate {
+    pub(crate) fn eval_macro_expr(&self, expr: &MacroExpr<'a>, heap_size: u64) -> Immediate {
         use MacroExpr as M;
 
         macro_rules! eval {
@@ -146,7 +146,7 @@ impl<'a> Parser<'a> {
                     .map_or_else(
                         |e| {
                             let span = e.1.clone();
-                            self.errors.push(e);
+                            self.error_at(e.0, e.1);
                             (RawOperand::Immediate(Immediate::InstLoc(0)), span)
                         },
                         |o| o,

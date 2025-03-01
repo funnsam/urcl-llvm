@@ -16,7 +16,7 @@ impl Parser<'_> {
                 expect_some_token!(self self.next_token(), t => {
                     match self.parse_operand(&OperandKind::Any) {
                         Ok(v) => _ = self.defines.insert(t, v),
-                        Err(e) => self.errors.push(e),
+                        Err(e) => self.error_at(e.0, e.1),
                     }
                     self.expect_nl();
                 }, self.wait_nl());

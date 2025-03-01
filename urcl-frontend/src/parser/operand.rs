@@ -94,7 +94,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub(crate) fn finalize(&mut self, op: &(RawOperand<'a>, Span), heap_size: u64) -> Any {
+    pub(crate) fn finalize(&self, op: &(RawOperand<'a>, Span), heap_size: u64) -> Any {
         match &op.0 {
             RawOperand::Register(r) => Any::Register(r.clone()),
             RawOperand::Immediate(i) => Any::Immediate(i.clone()),
@@ -129,7 +129,7 @@ impl<'a> Parser<'a> {
             RawOperand::MacroImm(MacroImm::UHalf | MacroImm::LHalf) => todo!(),
             RawOperand::Label(l) => Any::Immediate(self.labels.get(l).map_or_else(
                 || {
-                    self.errors.push((ParseError::UnknownLabel, op.1.clone()));
+                    self.error_at(ParseError::UnknownLabel, op.1.clone());
                     Immediate::Value(Integer::ZERO)
                 },
                 |v| v.clone(),

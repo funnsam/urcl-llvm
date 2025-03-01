@@ -49,10 +49,16 @@ impl<'a> Parser<'a> {
     pub(crate) fn span(&self) -> Span { self.lex.span() }
     pub(crate) fn total_span(&self) -> Span { self.start..self.lex.span().end }
 
-    pub(crate) fn error(&mut self, err: ParseError) { self.errors.push((err, self.span())); }
+    pub(crate) fn error(&self, err: ParseError) {
+        self.error_at(err, self.span());
+    }
 
-    pub(crate) fn total_span_error(&mut self, err: ParseError) {
-        self.errors.push((err, self.total_span()));
+    pub(crate) fn total_span_error(&self, err: ParseError) {
+        self.error_at(err, self.total_span());
+    }
+
+    pub(crate) fn error_at(&self, err: ParseError, span: Span) {
+        self.errors.borrow_mut().push((err, span));
     }
 
     pub(crate) fn expect_nl(&mut self) {
