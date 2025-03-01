@@ -9,7 +9,7 @@ bits 8
 @define total_tests %uint
 imm r1 1
 
-out total_tests 8
+out total_tests 12
 
 // setge
     @setge ge_test_1 69 69
@@ -113,6 +113,60 @@ out test_end test_end_data
 imm r1 1
 
 // ssetg
+    @ssetg sg_test_1 127 121
+    sub r1 sg_test_1 set_val
+    out case_result r1
+
+    @ssetg sg_test_2 121 127
+    out case_result sg_test_2
+
+    @ssetg sg_test_3 255 120
+    out case_result sg_test_3
+out test_cases 3
+out test_end test_end_data
+imm r1 1
+
 // ssetl
+    @ssetl sl_test_1 127 121
+    out case_result sl_test_1
+
+    @ssetl sl_test_2 121 127
+    sub r1 sl_test_2 set_val
+    out case_result r1
+
+    @ssetl sl_test_3 255 120
+    sub r1 sl_test_3 set_val
+    out case_result r1
+out test_cases 3
+out test_end test_end_data
+imm r1 1
+
 // ssetge
+    @ssetge sge_test_1 127 121
+    sub r1 sge_test_1 set_val
+    out case_result r1
+
+    @ssetge sge_test_2 325 69
+    sub r1 sge_test_2 set_val
+    out case_result r1
+
+    @ssetge sge_test_3 255 120
+    out case_result sge_test_3
+out test_cases 3
+out test_end test_end_data
+imm r1 1
+
 // ssetle
+    @ssetle sle_test_1 127 121
+    out case_result sle_test_1
+
+    @ssetle sle_test_2 69 325
+    sub r1 sle_test_2 set_val
+    out case_result r1
+
+    @ssetle sle_test_3 255 120
+    sub r1 sle_test_3 set_val
+    out case_result r1
+out test_cases 3
+out test_end test_end_data
+imm r1 1

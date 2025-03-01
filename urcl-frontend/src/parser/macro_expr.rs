@@ -38,12 +38,10 @@ pub(crate) enum MacroExpr<'a> {
     SetLe(RawOp<'a>, RawOp<'a>),
     SetC(RawOp<'a>, RawOp<'a>),
     SetNc(RawOp<'a>, RawOp<'a>),
-    /*
     SSetG(RawOp<'a>, RawOp<'a>),
     SSetL(RawOp<'a>, RawOp<'a>),
     SSetGe(RawOp<'a>, RawOp<'a>),
     SSetLe(RawOp<'a>, RawOp<'a>),
-    */
 }
 
 macro_rules! eval {
@@ -126,12 +124,10 @@ impl<'a> Parser<'a> {
             M::SetLe(a, b) => eval!(self h a, b => a <= b),
             M::SetC(a, b) => eval!(self h a, b => a + b > self.bits_umax()),
             M::SetNc(a, b) => eval!(self h a, b => a + b <= self.bits_umax()),
-            /*
-            M::SSetG(a, b) => eval!(self h a, b => todo!()),
-            M::SSetL(a, b) => eval!(self h a, b => todo!()),
-            M::SSetGe(a, b) => eval!(self h a, b => todo!()),
-            M::SSetLe(a, b) => eval!(self h a, b => todo!()),
-            */
+            M::SSetG(a, b) => eval!(self h a, b => self.sign(a) > self.sign(b)),
+            M::SSetL(a, b) => eval!(self h a, b => self.sign(a) < self.sign(b)),
+            M::SSetGe(a, b) => eval!(self h a, b => self.sign(a) >= self.sign(b)),
+            M::SSetLe(a, b) => eval!(self h a, b => self.sign(a) <= self.sign(b)),
         }
     }
 }
