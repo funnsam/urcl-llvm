@@ -131,6 +131,10 @@ impl<'a> Parser<'a> {
     }
 
     pub(crate) fn parse_macro_expr(&mut self, name: &str) -> Option<(MacroExpr<'a>, Span)> {
+        macro_rules! first {
+            ($first:tt $($_:tt)*) => { $first };
+        }
+
         macro_rules! expr {
             ($expr:tt $($op:tt),*) => {{
                 $(
@@ -144,42 +148,43 @@ impl<'a> Parser<'a> {
                         |o| o,
                     );
                 )*
-                Some((MacroExpr::$expr($($op),*), self.total_span()))
+                let start = first!($($op)*).1.start;
+                Some((MacroExpr::$expr($($op),*), start..self.span().end))
             }};
         }
 
         match name.to_ascii_lowercase().as_str() {
-            "add" => expr!(Add a, b),
-            "sub" => expr!(Sub a, b),
-            "mlt" => expr!(Mlt a, b),
-            "umlt" => expr!(Umlt a, b),
-            "sumlt" => expr!(SUmlt a, b),
-            "div" => expr!(Div a, b),
-            "sdiv" => expr!(Sdiv a, b),
-            "mod" => expr!(Mod a, b),
-            "abs" => expr!(Abs a),
-            "bsl" => expr!(Bsl a, b),
-            "bsr" => expr!(Bsr a, b),
-            "bss" => expr!(Bss a, b),
-            "or" => expr!(Or a, b),
-            "nor" => expr!(Nor a, b),
-            "and" => expr!(And a, b),
-            "nand" => expr!(Nand a, b),
-            "xor" => expr!(Xor a, b),
-            "xnor" => expr!(Xnor a, b),
-            "not" => expr!(Not a),
-            "sete" => expr!(SetE a, b),
-            "setne" => expr!(SetNe a, b),
-            "setg" => expr!(SetG a, b),
-            "setl" => expr!(SetL a, b),
-            "setge" => expr!(SetGe a, b),
-            "setle" => expr!(SetLe a, b),
-            "setc" => expr!(SetC a, b),
-            "setnc" => expr!(SetNc a, b),
-            "ssetg" => expr!(SSetG a, b),
-            "ssetl" => expr!(SSetL a, b),
-            "ssetge" => expr!(SSetGe a, b),
-            "ssetle" => expr!(SSetLe a, b),
+            "add" | "+" => expr!(Add a, b),
+            "sub" | "-" => expr!(Sub a, b),
+            "mlt" | "*" => expr!(Mlt a, b),
+            "umlt" | "^*" => expr!(Umlt a, b),
+            "sumlt" | "~^*" => expr!(SUmlt a, b),
+            "div" | "/" => expr!(Div a, b),
+            "sdiv" | "~/" => expr!(Sdiv a, b),
+            "mod" | "%" => expr!(Mod a, b),
+            "abs" | "+|" => expr!(Abs a),
+            "bsl" | "<<" => expr!(Bsl a, b),
+            "bsr" | ">>" => expr!(Bsr a, b),
+            "bss" | "~>>" => expr!(Bss a, b),
+            "or" | "|" => expr!(Or a, b),
+            "nor" | "!|" => expr!(Nor a, b),
+            "and" | "&" => expr!(And a, b),
+            "nand" | "!&" => expr!(Nand a, b),
+            "xor" | "^" => expr!(Xor a, b),
+            "xnor" | "!^" => expr!(Xnor a, b),
+            "not" | "!" => expr!(Not a),
+            "sete" | "==" => expr!(SetE a, b),
+            "setne" | "!=" => expr!(SetNe a, b),
+            "setg" | ">" => expr!(SetG a, b),
+            "setl" | "<" => expr!(SetL a, b),
+            "setge" | ">=" => expr!(SetGe a, b),
+            "setle" | "<=" => expr!(SetLe a, b),
+            "setc" | "^+" => expr!(SetC a, b),
+            "setnc" | "!^+" => expr!(SetNc a, b),
+            "ssetg" | "~>" => expr!(SSetG a, b),
+            "ssetl" | "~<" => expr!(SSetL a, b),
+            "ssetge" | "~>=" => expr!(SSetGe a, b),
+            "ssetle" | "~<=" => expr!(SSetLe a, b),
             _ => None,
         }
     }

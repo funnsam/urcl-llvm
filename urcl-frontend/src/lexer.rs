@@ -14,7 +14,7 @@ pub enum Token<'a> {
     Integer(Integer),
     #[regex(r"\%(\d+|0b[01]+|0o[0-7]+|0x[0-9a-fA-F]+)", callback = |lex| parse_int(&lex.slice()[1..])?.to_u8(), priority = 999)]
     PortInt(u8),
-    #[regex(r"\%[^\s/]+", callback = |lex| &lex.slice()[1..])]
+    #[token("%", callback = |lex| continue_name(lex, 1))]
     Port(&'a str),
     #[regex(r"[rR](\d+|0b[01]+|0o[0-7]+|0x[0-9a-fA-F]+)", callback = |lex| Some(Register::General(parse_int(&lex.slice()[1..])?.to_u16()?)))]
     #[token("pc", callback = |_| Register::Pc, ignore(ascii_case))]
@@ -30,11 +30,11 @@ pub enum Token<'a> {
     #[regex(r#""([^"]|\\")*""#, callback = |lex| parse_str(&lex.slice()[1..]))]
     String(Vec<u32>),
 
-    #[regex(r"[a-zA-Z_][^\s/]*")]
+    #[regex(r"[a-zA-Z_]", callback = |lex| continue_name(lex, 0))]
     Name(&'a str),
-    #[regex(r"\@[^\s/]+", callback = |lex| Some(&lex.slice()[1..]))]
+    #[token("@", callback = |lex| continue_name(lex, 1))]
     Macro(&'a str),
-    #[regex(r"\.[^\s/]+", callback = |lex| Some(&lex.slice()[1..]))]
+    #[token(".", callback = |lex| continue_name(lex, 1))]
     Label(&'a str),
 
     #[token("\n", priority = 999)]
@@ -113,6 +113,25 @@ fn get_char_esc<I: Iterator<Item = char>>(iter: &mut I) -> Option<u32> {
         },
         c => Some(c as u32),
     }
+}
+
+fn continue_name<'a>(lex: &mut Lexer<'a>, start: usize) -> &'a str {
+    loop {
+        let mut chars = lex.remainder().chars();
+
+        match chars.next() {
+            Some('/') => if matches!(chars.next(), Some('/' | '*')) {
+                break;
+            } else {
+                lex.bump(1);
+            },
+            Some(ch) if ch.is_whitespace() => break,
+            Some(ch) => lex.bump(ch.len_utf8()),
+            None => break,
+        }
+    }
+
+    &lex.slice()[start..]
 }
 
 impl Token<'_> {
