@@ -1,0 +1,45 @@
+bits 8
+
+@define case_result %numb
+@define test_cases %int
+@define test_end %text
+@define test_end_data '\n'
+@define total_tests %uint
+imm r1 1
+
+out total_tests 2
+
+// inline in inline w/ macro imms
+    // 2 parens
+    sub r1 ((@add @bits 3)) 11
+    out case_result r1
+
+    // 1 paren
+    sub r1 (@add @bits 3) 11
+    out case_result r1
+
+    // 0 parens
+    sub r1 @add @bits 3 11
+    out case_result r1
+out test_cases 3
+out test_end test_end_data
+imm r1 1
+
+// inline in define w/ macro imms
+    // 2 parens
+    @sub i_in_d ((@add @bits 3)) 1
+    sub r1 i_in_d 10
+    out case_result r1
+
+    // 1 paren
+    @sub i_in_d (@add @bits 3) 1
+    sub r1 i_in_d 10
+    out case_result r1
+
+    // 0 parens
+    @sub i_in_d_pl @add @bits 3 1
+    sub r1 i_in_d_pl 10
+    out case_result r1
+out test_cases 3
+out test_end test_end_data
+imm r1 1
