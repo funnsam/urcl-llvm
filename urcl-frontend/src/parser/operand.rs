@@ -5,16 +5,15 @@ use logos::Span;
 use num_traits::ToPrimitive;
 use urcl_ast::{Any, Immediate, OperandKind, Port, Register};
 
-use crate::lexer::{LexResult, Token};
+use crate::{lexer::{LexResult, Token}, parser::util::expect_some_token};
 
-use super::{macro_expr::MacroExpr, MacroImm, ParseError, Parser};
+use super::{macro_expr::MacroExpr, ParseError, Parser};
 
 #[derive(Debug, Clone)]
 pub(crate) enum RawOperand<'a> {
     Register(Register),
     Immediate(Immediate),
     Heap(Integer),
-    MacroImm(MacroImm),
     Label(&'a str),
     MacroExpr(Box<MacroExpr<'a>>),
 }
@@ -34,13 +33,7 @@ impl<'a> Parser<'a> {
         ok: &'static OperandKind,
     ) -> Result<(RawOperand<'a>, Span), (ParseError, Span)> {
         match t {
-            Some(Ok(t)) => {
-                if let Some(def) = self.defines.get(&t) {
-                    Ok(def.clone())
-                } else {
-                    self.parse_operand_with_token(t, ok)
-                }
-            },
+            Some(Ok(t)) => self.parse_operand_with_token(t, ok),
             Some(Err(e)) => Err((ParseError::LexError(e), self.span())),
             None => Err((ParseError::UnexpectedEof, self.span())),
         }
@@ -51,6 +44,10 @@ impl<'a> Parser<'a> {
         t: Token<'a>,
         ok: &'static OperandKind,
     ) -> Result<(RawOperand<'a>, Span), (ParseError, Span)> {
+        if let Some(def) = self.defines.get(&t) {
+            return Ok(def.clone());
+        }
+
         match (t, ok) {
             (Token::Reg(r), OperandKind::Register | OperandKind::Any) => {
                 Ok((RawOperand::Register(r), self.span()))
@@ -61,12 +58,22 @@ impl<'a> Parser<'a> {
             (Token::Heap(h), OperandKind::Immediate | OperandKind::Any) => {
                 Ok((RawOperand::Heap(h), self.span()))
             },
-            (Token::Macro(m), OperandKind::Immediate | OperandKind::Any) => Ok((
-                RawOperand::MacroImm(
-                    MacroImm::from_str(m).map_err(|_| (ParseError::UnknownMacro, self.span()))?,
-                ),
-                self.span(),
-            )),
+            (Token::Macro(m), OperandKind::Immediate | OperandKind::Any) => {
+                self.parse_macro_expr(m)
+                    .ok_or((ParseError::UnknownMacro, self.span()))
+                    .map(|(m, s)| (m.into(), s))
+            },
+            (Token::ParenStart, OperandKind::Immediate | OperandKind::Any) => {
+                let inner = self.parse_operand(&OperandKind::Immediate);
+
+                if inner.is_ok() {
+                    expect_some_token!(self self.peek_next(), Token::ParenEnd => {
+                        self.next_token();
+                    }, {});
+                }
+
+                inner
+            },
             (Token::Label(l), OperandKind::Immediate | OperandKind::Any) => {
                 Ok((RawOperand::Label(l), self.span()))
             },
@@ -99,34 +106,6 @@ impl<'a> Parser<'a> {
             RawOperand::Register(r) => Any::Register(r.clone()),
             RawOperand::Immediate(i) => Any::Immediate(i.clone()),
             RawOperand::Heap(h) => Any::Immediate(Immediate::Value(h + self.dw.len())),
-            RawOperand::MacroImm(MacroImm::Bits) => {
-                Any::Immediate(Immediate::Value(self.bits().into()))
-            },
-            RawOperand::MacroImm(MacroImm::MinReg) => {
-                Any::Immediate(Immediate::Value(self.registers().into()))
-            },
-            RawOperand::MacroImm(MacroImm::MinStack) => {
-                Any::Immediate(Immediate::Value(self.min_stack().into()))
-            },
-            RawOperand::MacroImm(MacroImm::MinHeap) => {
-                Any::Immediate(Immediate::Value(self.min_heap().into()))
-            },
-            RawOperand::MacroImm(MacroImm::Heap) => {
-                Any::Immediate(Immediate::Value(heap_size.into()))
-            },
-            RawOperand::MacroImm(MacroImm::Max) => Any::Immediate(Immediate::Value(
-                self.bits_umax().into(),
-            )),
-            RawOperand::MacroImm(MacroImm::SMax) => Any::Immediate(Immediate::Value(
-                self.bits_smax().into(),
-            )),
-            RawOperand::MacroImm(MacroImm::Msb) => Any::Immediate(Immediate::Value(
-                self.bits_umsb().into(),
-            )),
-            RawOperand::MacroImm(MacroImm::SMsb) => Any::Immediate(Immediate::Value(
-                self.bits_smsb().into(),
-            )),
-            RawOperand::MacroImm(MacroImm::UHalf | MacroImm::LHalf) => todo!(),
             RawOperand::Label(l) => Any::Immediate(self.labels.get(l).map_or_else(
                 || {
                     self.error_at(ParseError::UnknownLabel, op.1.clone());

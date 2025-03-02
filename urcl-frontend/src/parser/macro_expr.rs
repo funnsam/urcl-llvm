@@ -1,14 +1,18 @@
+use core::str::FromStr;
+
 use dashu::{base::Sign, Integer, Natural};
 use logos::Span;
 use num_traits::ToPrimitive;
 use urcl_ast::{Any, Immediate, OperandKind};
 
-use super::{error::ParseError, operand::RawOperand, Parser};
+use super::{error::ParseError, macro_imm::MacroImm, operand::RawOperand, Parser};
 
 pub(crate) type RawOp<'a> = (super::operand::RawOperand<'a>, Span);
 
 #[derive(Debug, Clone)]
 pub(crate) enum MacroExpr<'a> {
+    MacroImm(MacroImm),
+
     Add(RawOp<'a>, RawOp<'a>),
     Sub(RawOp<'a>, RawOp<'a>),
     Mlt(RawOp<'a>, RawOp<'a>),
@@ -42,6 +46,12 @@ pub(crate) enum MacroExpr<'a> {
     SSetL(RawOp<'a>, RawOp<'a>),
     SSetGe(RawOp<'a>, RawOp<'a>),
     SSetLe(RawOp<'a>, RawOp<'a>),
+}
+
+impl<'a> From<MacroExpr<'a>> for RawOperand<'a> {
+    fn from(value: MacroExpr<'a>) -> Self {
+        Self::MacroExpr(Box::new(value))
+    }
 }
 
 impl<'a> Parser<'a> {
@@ -98,6 +108,8 @@ impl<'a> Parser<'a> {
         }
 
         match expr {
+            M::MacroImm(mi) => Immediate::Value(self.eval_macro_imm(*mi, heap_size)),
+
             M::Add(a, b) => eval!(a, b => a + b),
             M::Sub(a, b) => eval!(a, b => self.bits_vals() + a - b),
             M::Mlt(a, b) => eval!(a, b => a * b),
@@ -155,6 +167,10 @@ impl<'a> Parser<'a> {
                 let start = first!($($op)*).1.start;
                 Some((MacroExpr::$expr($($op),*), start..self.span().end))
             }};
+        }
+
+        if let Ok(mi) = MacroImm::from_str(name) {
+            return Some((MacroExpr::MacroImm(mi), self.span()));
         }
 
         match name.to_ascii_lowercase().as_str() {

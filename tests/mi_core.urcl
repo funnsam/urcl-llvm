@@ -1,0 +1,24 @@
+bits 8
+
+@define case_result %numb
+@define test_cases %int
+@define test_end %text
+@define test_end_data '\n'
+@define total_tests %uint
+imm r1 1
+
+out total_tests 2
+
+// add
+    sub r1 (@add 0x9f 0x8b) 0x2a
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1
+
+// nor
+    sub r1 (@nor 3 5) 248
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1

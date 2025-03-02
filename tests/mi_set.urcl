@@ -1,0 +1,140 @@
+bits 8
+
+@define set_val @max
+
+@define case_result %numb
+@define test_cases %int
+@define test_end %text
+@define test_end_data '\n'
+@define total_tests %uint
+imm r1 1
+
+out total_tests 12
+
+// setge
+    sub r1 (@setge 69 69) set_val
+    out case_result r1
+
+    sub r1 (@setge 246 240) set_val
+    out case_result r1
+
+    out case_result (@setge 240 246)
+out test_cases 3
+out test_end test_end_data
+
+// setl
+    sub r1 (@setl 240 246) set_val
+    out case_result r1
+
+    out case_result (@setl 246 240)
+
+    out case_result (@setl 240 240)
+out test_cases 3
+out test_end test_end_data
+imm r1 1
+
+// setg
+    sub r1 (@setg 246 240) set_val
+    out case_result r1
+
+    out case_result (@setg 240 246)
+
+    out case_result (@setg 240 240)
+out test_cases 3
+out test_end test_end_data
+imm r1 1
+
+// sete
+    sub r1 (@sete 69 325) set_val
+    out case_result r1
+
+    out case_result (@sete 69 42)
+out test_cases 2
+out test_end test_end_data
+imm r1 1
+
+// setne
+    sub r1 (@setne 69 42) set_val
+    out case_result r1
+
+    out case_result (@setne 69 325)
+out test_cases 2
+out test_end test_end_data
+imm r1 1
+
+// setle
+    sub r1 (@setle 240 246) set_val
+    out case_result r1
+
+    out case_result (@setle 246 240)
+
+    sub r1 (@setle 3 3) set_val
+    out case_result r1
+out test_cases 3
+out test_end test_end_data
+imm r1 1
+
+// setc
+    sub r1 (@setc 0xd9 0xcb) set_val
+    out case_result r1
+
+    out case_result (@setc 4 8)
+out test_cases 2
+out test_end test_end_data
+imm r1 1
+
+// setnc
+    sub r1 (@setnc 3 5) set_val
+    out case_result r1
+
+    out case_result (@setnc 0xd8 0xcd)
+out test_cases 2
+out test_end test_end_data
+imm r1 1
+
+// ssetg
+    sub r1 (@ssetg 127 121) set_val
+    out case_result r1
+
+    out case_result (@ssetg 121 127)
+
+    out case_result (@ssetg 255 120)
+out test_cases 3
+out test_end test_end_data
+imm r1 1
+
+// ssetl
+    out case_result (@ssetl 127 121)
+
+    sub r1 (@ssetl 121 127) set_val
+    out case_result r1
+
+    sub r1 (@ssetl 255 120) set_val
+    out case_result r1
+out test_cases 3
+out test_end test_end_data
+imm r1 1
+
+// ssetge
+    sub r1 (@ssetge 127 121) set_val
+    out case_result r1
+
+    sub r1 (@ssetge 325 69) set_val
+    out case_result r1
+
+    out case_result (@ssetge 255 120)
+out test_cases 3
+out test_end test_end_data
+imm r1 1
+
+// ssetle
+    out case_result (@ssetle 127 121)
+
+    sub r1 (@ssetle 69 325) set_val
+    out case_result r1
+
+    sub r1 (@ssetle 255 120) set_val
+    out case_result r1
+out test_cases 3
+out test_end test_end_data
+imm r1 1

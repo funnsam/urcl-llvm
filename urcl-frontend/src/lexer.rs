@@ -39,10 +39,14 @@ pub enum Token<'a> {
 
     #[token("\n", priority = 999)]
     Newline,
+    #[token("(")]
+    ParenStart,
+    #[token(")")]
+    ParenEnd,
     #[token("[")]
-    SqBrStart,
+    BrStart,
     #[token("]")]
-    SqBrEnd,
+    BrEnd,
     #[token("<=")]
     CmpLe,
     #[token(">=")]
@@ -126,8 +130,9 @@ fn continue_name<'a>(lex: &mut Lexer<'a>, start: usize) -> &'a str {
                 lex.bump(1);
             },
             Some(ch) if ch.is_whitespace() => break,
+            Some('%') if start == 0 => break,
+            Some('(' | ')') | None => break,
             Some(ch) => lex.bump(ch.len_utf8()),
-            None => break,
         }
     }
 

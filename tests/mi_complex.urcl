@@ -10,48 +10,42 @@ imm r1 1
 out total_tests 10
 
 // mlt
-    @mlt mlt_test 0x69 0x42
-    sub r1 mlt_test 18
+    sub r1 (@mlt 0x69 0x42) 18
     out case_result r1
 out test_cases 1
 out test_end test_end_data
 imm r1 1
 
 // div (rounds towards 0)
-    @div div_test 250 3
-    sub r1 div_test 83
+    sub r1 (@div 250 3) 83
     out case_result r1
 out test_cases 1
 out test_end test_end_data
 imm r1 1
 
 // mod
-    @mod mod_test 250 3
-    sub r1 mod_test 1
+    sub r1 (@mod 250 3) 1
     out case_result r1
 out test_cases 1
 out test_end test_end_data
 imm r1 2
 
 // bsr
-    @bsr bsr_test 0x80 7
-    sub r1 bsr_test 1
+    sub r1 (@bsr 0x80 7) 1
     out case_result r1
 out test_cases 1
 out test_end test_end_data
 imm r1 1
 
 // bsl
-    @bsl bsl_test 0x01 7
-    sub r1 bsl_test 0x80
+    sub r1 (@bsl 1 7) 0x80
     out case_result r1
 out test_cases 1
 out test_end test_end_data
 imm r1 1
 
 // bss
-    @bss bss_test 0x80 7
-    sub r1 bss_test 0xff
+    sub r1 (@bss 0x80 7) 0xff
     out case_result r1
 out test_cases 1
 out test_end test_end_data
@@ -67,8 +61,7 @@ imm r1 1
 // setnc
 
 // sdiv (rounds towards 0)
-    @sdiv sdiv_test 250 3
-    sub r1 sdiv_test 254
+    sub r1 (@sdiv 250 3) 254
     out case_result r1
 out test_cases 1
 out test_end test_end_data
@@ -85,24 +78,21 @@ imm r1 1
 // ssetle
 
 // abs
-    @abs abs_test 0x96
-    sub r1 abs_test 0x6a
+    sub r1 (@abs 0x96) 0x6a
     out case_result r1
 out test_cases 1
 out test_end test_end_data
 imm r1 1
 
 // umlt
-    @umlt umlt_test 0x69 0x42
-    sub r1 umlt_test 0x1b
+    sub r1 (@umlt 0x69 0x42) 0x1b
     out case_result r1
 out test_cases 1
 out test_end test_end_data
 imm r1 1
 
 // sumlt
-    @sumlt sumlt_test 0x97 0x42
-    sub r1 sumlt_test 0xe4
+    sub r1 (@sumlt 0x97 0x42) 0xe4
     out case_result r1
 out test_cases 1
 out test_end test_end_data

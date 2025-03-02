@@ -1,0 +1,73 @@
+bits 8
+
+@define case_result %numb
+@define test_cases %int
+@define test_end %text
+@define test_end_data '\n'
+@define total_tests %uint
+imm r1 1
+
+out total_tests 9
+
+// @bits
+    sub r1 @bits 8
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1
+
+// @minreg
+    sub r1 @minreg 8
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1
+
+// @minheap
+    sub r1 @minheap 16
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1
+
+// @minstack
+    sub r1 @minstack 8
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1
+
+// @heap
+    setl r1 @heap 16
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1
+
+// @msb
+    sub r1 @msb 128
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1
+
+// @smsb
+    sub r1 @smsb 64
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1
+
+// @max
+    sub r1 @max 255
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1
+
+// @smax
+    sub r1 @smax 127
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1

@@ -2,7 +2,7 @@ use urcl_ast::OperandKind;
 
 use crate::{lexer::Token, parser::util::expect_some_token};
 
-use super::{Parser, error::ParseError, operand::RawOperand};
+use super::{Parser, error::ParseError};
 
 impl Parser<'_> {
     fn unknown_macro(&mut self) {
@@ -33,8 +33,7 @@ impl Parser<'_> {
                         self.next_token();
 
                         if let Some(mx) = self.parse_macro_expr(name) {
-                            let raw = RawOperand::MacroExpr(Box::new(mx.0));
-                            self.defines.insert(dest, (raw, mx.1));
+                            self.defines.insert(dest, (mx.0.into(), mx.1));
                         } else {
                             self.unknown_macro();
                         }

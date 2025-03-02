@@ -1,5 +1,6 @@
 pub mod error;
 mod macro_expr;
+mod macro_imm;
 mod macros;
 mod operand;
 mod util;
@@ -36,22 +37,6 @@ pub struct Parser<'a> {
     dw: Vec<(RawOperand<'a>, Span)>,
 
     errors: RefCell<Vec<(ParseError, Span)>>,
-}
-
-#[derive(Debug, Clone, strum::EnumString)]
-#[strum(ascii_case_insensitive)]
-pub(crate) enum MacroImm {
-    Bits,
-    MinReg,
-    MinHeap,
-    MinStack,
-    Heap,
-    Msb,
-    SMsb,
-    Max,
-    SMax,
-    UHalf,
-    LHalf,
 }
 
 impl<'a> Parser<'a> {
@@ -133,26 +118,26 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_add_dw(&mut self) {
-        let mut in_sq_bracket = false;
+        let mut in_bracket = false;
 
         while let Some(t) = self.next_token() {
             match t {
-                Ok(Token::SqBrStart) => {
-                    if in_sq_bracket {
+                Ok(Token::BrStart) => {
+                    if in_bracket {
                         self.error(ParseError::UnexpectedToken);
                     }
 
-                    in_sq_bracket = true;
+                    in_bracket = true;
                 },
-                Ok(Token::SqBrEnd) => {
-                    if !in_sq_bracket {
+                Ok(Token::BrEnd) => {
+                    if !in_bracket {
                         self.error(ParseError::UnexpectedToken);
                     }
 
-                    in_sq_bracket = false;
+                    in_bracket = false;
                 },
                 Ok(Token::Newline) => {
-                    if !in_sq_bracket {
+                    if !in_bracket {
                         break;
                     }
                 },
