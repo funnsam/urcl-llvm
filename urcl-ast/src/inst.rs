@@ -193,4 +193,5 @@ impl OperandKind {
     pub fn can_int(self) -> bool { matches!(self, Self::AnyInt | Self::Any) }
     pub fn can_float(self) -> bool { matches!(self, Self::AnyFloat | Self::Any) }
     pub fn can_reg(self) -> bool { self != Self::AnyImm }
+    pub fn can_imm(self) -> bool { self == Self::AnyImm }
 }

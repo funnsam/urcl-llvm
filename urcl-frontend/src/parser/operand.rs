@@ -56,18 +56,18 @@ impl<'a> Parser<'a> {
         match t {
             Token::Name("_") => Ok((RawOperand::Undefined, self.span())),
             Token::Reg(r) if ok.can_reg() => Ok((RawOperand::Register(r), self.span())),
-            Token::Integer(i) if ok.can_int() => {
+            Token::Integer(i) if ok.can_int() | ok.can_imm() => {
                 Ok((RawOperand::IntImm(IntImm::Value(i)), self.span()))
             },
-            Token::Float(f) if ok.can_float() => {
+            Token::Float(f) if ok.can_float() | ok.can_imm() => {
                 Ok((RawOperand::FloatImm(FloatImm(f.into())), self.span()))
             },
-            Token::Heap(h) if ok.can_int() => Ok((RawOperand::Heap(h), self.span())),
-            Token::Macro(m) if ok.can_int() => self
+            Token::Heap(h) if ok.can_int() | ok.can_imm() => Ok((RawOperand::Heap(h), self.span())),
+            Token::Macro(m) if ok.can_int() | ok.can_imm() => self
                 .parse_macro_expr(m)
                 .ok_or((ParseError::UnknownMacro, self.span()))
                 .map(|(m, s)| (m.into(), s)),
-            Token::ParenStart if ok.can_int() => {
+            Token::ParenStart if ok.can_int() | ok.can_imm() => {
                 let inner = self.parse_operand(ok);
 
                 if inner.is_ok() {
@@ -78,8 +78,8 @@ impl<'a> Parser<'a> {
 
                 inner
             },
-            Token::Label(l) if ok.can_int() => Ok((RawOperand::Label(l), self.span())),
-            Token::Relative(r) if ok.can_int() => Ok((
+            Token::Label(l) if ok.can_int() | ok.can_imm() => Ok((RawOperand::Label(l), self.span())),
+            Token::Relative(r) if ok.can_int() | ok.can_imm() => Ok((
                 RawOperand::IntImm(IntImm::InstLoc(
                     (Integer::from(self.instructions.len()) + r)
                         .to_usize()
@@ -87,7 +87,7 @@ impl<'a> Parser<'a> {
                 )),
                 self.span(),
             )),
-            Token::Port(p) if ok.can_int() => {
+            Token::Port(p) if ok.can_int() | ok.can_imm() => {
                 let p = Port::from_str(p).map_err(|_| (ParseError::UnknownPort, self.span()))?;
 
                 Ok((
@@ -95,7 +95,7 @@ impl<'a> Parser<'a> {
                     self.span(),
                 ))
             },
-            Token::PortInt(p) if ok.can_int() => {
+            Token::PortInt(p) if ok.can_int() | ok.can_imm() => {
                 Ok((RawOperand::IntImm(IntImm::Value(p.into())), self.span()))
             },
             _ => Err((ParseError::InvalidOperand(ok), self.span())),

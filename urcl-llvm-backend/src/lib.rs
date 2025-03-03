@@ -1,3 +1,8 @@
+#![feature(f16, f128)]
+
+mod float_size;
+
+use float_size::FloatSize;
 use inkwell::{
     AddressSpace, IntPredicate, basic_block, builder, context, debug_info, debug_info::AsDIScope,
     intrinsics, module, passes, support, targets, types, values,
@@ -36,7 +41,7 @@ pub struct Codegen<'a> {
 
     word: types::IntType<'a>,
     float: types::FloatType<'a>,
-    float_size: u8,
+    float_size: FloatSize,
 }
 
 impl<'a> Codegen<'a> {
@@ -75,10 +80,10 @@ impl<'a> Codegen<'a> {
         let word = context.0.custom_width_int_type(program.bits);
 
         let (float, float_size) = match program.bits {
-            128.. => (context.0.f128_type(), 128),
-            64.. => (context.0.f64_type(), 64),
-            32.. => (context.0.f32_type(), 32),
-            _ => (context.0.f16_type(), 16),
+            128.. => (context.0.f128_type(), FloatSize::_128),
+            64.. => (context.0.f64_type(), FloatSize::_64),
+            32.. => (context.0.f32_type(), FloatSize::_32),
+            _ => (context.0.f16_type(), FloatSize::_16),
         };
 
         Self {
@@ -153,9 +158,24 @@ impl<'a> Codegen<'a> {
         match i {
             AnyImm::IntImm(i) => self.int_imm_to_addr_or_word(i, native_addr, inst_bb),
             AnyImm::FloatImm(f) => {
-                // SAFETY: f.to_string() should return a valid float
-                let f = unsafe { self.float.const_float_from_string(&f.to_string()) };
-                todo!();
+                match self.float_size {
+                    FloatSize::_16 => {
+                        let bits = (f.0.to_f32().value() as f16).to_bits();
+                        self.word.const_int(bits as u64, false)
+                    },
+                    FloatSize::_32 => {
+                        let bits = f.0.to_f32().value().to_bits();
+                        self.word.const_int(bits as u64, false)
+                    },
+                    FloatSize::_64 => {
+                        let bits = f.0.to_f64().value().to_bits();
+                        self.word.const_int(bits, false)
+                    },
+                    FloatSize::_128 => {
+                        let bits = (f.0.to_f64().value() as f128).to_bits();
+                        self.word.const_int_arbitrary_precision(&[bits as u64, (bits >> 64) as u64])
+                    },
+                }
             },
             AnyImm::Undefined => self.word.get_undef(),
         }
