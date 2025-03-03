@@ -14,7 +14,13 @@ out total_tests 7
 
 // sub
     out case_result (@sub 5 5)
-out test_cases 1
+
+    sub r1 (@sub 5 3) 2
+    out case_result r1
+
+    add r1 (@sub 3 5) 2
+    out case_result r1
+out test_cases 3
 out test_end test_end_data
 imm r1 1
 

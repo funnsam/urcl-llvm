@@ -27,18 +27,18 @@ imm r1 1
 
 // inline in define w/ macro imms
     // 2 parens
-    @sub i_in_d ((@add @bits 3)) 1
-    sub r1 i_in_d 10
+    @sub i_in_d_2 ((@add @bits 3)) 1
+    sub r1 i_in_d_2 10
     out case_result r1
 
     // 1 paren
-    @sub i_in_d (@add @bits 3) 1
-    sub r1 i_in_d 10
+    @sub i_in_d_1 (@add @bits 3) 1
+    sub r1 i_in_d_1 10
     out case_result r1
 
     // 0 parens
-    @sub i_in_d_pl @add @bits 3 1
-    sub r1 i_in_d_pl 10
+    @sub i_in_d_0 @add @bits 3 1
+    sub r1 i_in_d_0 10
     out case_result r1
 out test_cases 3
 out test_end test_end_data

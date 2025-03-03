@@ -12,7 +12,15 @@ out total_tests 7
 // sub (tested first because it is important)
     sub r1 5 5
     out case_result r1
-out test_cases 1
+
+    sub r1 5 3
+    add r1 r1 -2
+    out case_result r1
+
+    sub r1 3 5
+    add r1 r1 2
+    out case_result r1
+out test_cases 3
 out test_end test_end_data
 imm r1 1
 
