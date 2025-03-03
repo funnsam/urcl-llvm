@@ -25,7 +25,7 @@ pub struct Program {
 
     // body
     pub instructions: Vec<(Instruction, core::ops::Range<usize>)>,
-    pub dw: Vec<Immediate>,
+    pub dw: Vec<IntImm>,
 }
 
 impl fmt::Display for Program {

@@ -35,7 +35,7 @@ macro_rules! inst {
     };
 
     (r) => { Register };
-    (i) => { Immediate };
+    (i) => { IntImm };
     (a) => { Any };
 
     (op kind r) => { OperandKind::Register };
@@ -46,7 +46,7 @@ macro_rules! inst {
         $e.try_as_register().unwrap()
     };
     (from any i $e: expr) => {
-        $e.try_as_immediate().unwrap()
+        $e.try_as_int_imm().unwrap()
     };
     (from any a $e: expr) => {
         $e
@@ -169,10 +169,11 @@ impl Instruction {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum OperandKind {
     Register,
-    Immediate,
+    IntImm,
+    FloatImm,
     Any,
 }
 
@@ -180,4 +181,10 @@ pub enum OperandKind {
 pub struct InstProperties {
     pub operands: &'static [OperandKind],
     pub port_v2: Option<&'static [usize]>,
+}
+
+impl OperandKind {
+    pub fn can_int_imm(&self) -> bool { matches!(self, Self::IntImm | Self::Any) }
+    pub fn can_float_imm(&self) -> bool { matches!(self, Self::FloatImm | Self::Any) }
+    pub fn can_reg(&self) -> bool { matches!(self, Self::Register | Self::Any) }
 }

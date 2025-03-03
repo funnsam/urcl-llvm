@@ -20,9 +20,6 @@ struct Args {
     /// Use a global array for RAM instead of stack allocating
     #[arg(long)]
     use_global: bool,
-    /// Float operation bit width
-    #[arg(long, default_value_t = 32, value_parser = float_ty)]
-    float: usize,
     /// Use native addresses to jump indirectly (can change program behavior)
     #[arg(long)]
     native_addr: bool,
@@ -38,20 +35,6 @@ struct Args {
     emit_ir: bool,
     #[arg(long)]
     output_target_data: Option<String>,
-}
-
-fn float_ty(s: &str) -> Result<usize, String> {
-    let v = match s.chars().next() {
-        Some('f') => s[1..].parse::<usize>(),
-        _ => s.parse(),
-    }
-    .map_err(|e| e.to_string())?;
-
-    if matches!(v, 16 | 32 | 64 | 128) {
-        Ok(v)
-    } else {
-        Err("invalid float bit width, can only be 16, 32, 64 or 128".to_string())
-    }
 }
 
 fn main() {
@@ -72,7 +55,6 @@ fn main() {
 
     let options = urcl_llvm_backend::CodegenOptions {
         use_global: args.use_global,
-        float_type: args.float,
         native_addr: args.native_addr,
         bounds_safety: args.bounds_safety,
     };

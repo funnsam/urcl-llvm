@@ -3,7 +3,7 @@ use core::str::FromStr;
 use dashu::{base::Sign, Integer, Natural};
 use logos::Span;
 use num_traits::ToPrimitive;
-use urcl_ast::{Any, Immediate, OperandKind};
+use urcl_ast::{Any, IntImm, OperandKind};
 
 use super::{error::ParseError, macro_imm::MacroImm, operand::RawOperand, Parser};
 
@@ -57,7 +57,7 @@ impl<'a> From<MacroExpr<'a>> for RawOperand<'a> {
 impl<'a> Parser<'a> {
     fn finalize_to_nat(&self, op: &RawOp<'a>, heap_size: u64) -> Natural {
         match self.finalize(op, heap_size) {
-            Any::Immediate(i) => {
+            Any::IntImm(i) => {
                 let int = Integer::from(i);
 
                 if int.sign() == Sign::Positive {
@@ -67,7 +67,7 @@ impl<'a> Parser<'a> {
                 }
             },
             _ => {
-                self.error_at(ParseError::InvalidOperand(&OperandKind::Immediate), op.1.clone());
+                self.error_at(ParseError::InvalidOperand(OperandKind::IntImm), op.1.clone());
                 Natural::ONE
             },
         }
@@ -95,7 +95,7 @@ impl<'a> Parser<'a> {
         if b { self.bits_umax() } else { Natural::ZERO }
     }
 
-    pub(crate) fn eval_macro_expr(&self, expr: &MacroExpr<'a>, heap_size: u64) -> Immediate {
+    pub(crate) fn eval_macro_expr(&self, expr: &MacroExpr<'a>, heap_size: u64) -> IntImm {
         use MacroExpr as M;
 
         macro_rules! eval {
@@ -103,12 +103,12 @@ impl<'a> Parser<'a> {
                 $(
                     let $o = self.finalize_to_nat($o, heap_size) & self.bits_umax();
                 )*
-                Immediate::Value(Integer::from($a & self.bits_umax()))
+                IntImm::Value(Integer::from($a & self.bits_umax()))
             }};
         }
 
         match expr {
-            M::MacroImm(mi) => Immediate::Value(self.eval_macro_imm(*mi, heap_size)),
+            M::MacroImm(mi) => IntImm::Value(self.eval_macro_imm(*mi, heap_size)),
 
             M::Add(a, b) => eval!(a, b => a + b),
             M::Sub(a, b) => eval!(a, b => self.bits_vals() + a - b),
@@ -154,12 +154,12 @@ impl<'a> Parser<'a> {
         macro_rules! expr {
             ($expr:tt $($op:tt),*) => {{
                 $(
-                    let $op = self.parse_operand(&OperandKind::Immediate)
+                    let $op = self.parse_operand(OperandKind::IntImm)
                     .map_or_else(
                         |e| {
                             let span = e.1.clone();
                             self.error_at(e.0, e.1);
-                            (RawOperand::Immediate(Immediate::InstLoc(0)), span)
+                            (RawOperand::IntImm(IntImm::InstLoc(0)), span)
                         },
                         |o| o,
                     );

@@ -14,7 +14,7 @@ use dashu::Integer;
 use error::ParseError;
 use logos::Span;
 use operand::RawOperand;
-use urcl_ast::{Immediate, InstProperties, Instruction, OperandKind, Program};
+use urcl_ast::{IntImm, InstProperties, Instruction, OperandKind, Program};
 
 type MidInst<'a> = (&'a str, Vec<(RawOperand<'a>, Span)>, Span);
 
@@ -29,7 +29,7 @@ pub struct Parser<'a> {
     min_stack: Option<u64>,
     min_heap: Option<u64>,
 
-    labels: HashMap<&'a str, Immediate>,
+    labels: HashMap<&'a str, IntImm>,
     defines: HashMap<Token<'a>, (RawOperand<'a>, Span)>,
     features: HashSet<&'a str>,
 
@@ -74,7 +74,7 @@ impl<'a> Parser<'a> {
             self.error(ParseError::UnexpectedNewline);
         }
 
-        let opr = self.parse_operand(&i.operands[nth]);
+        let opr = self.parse_operand(i.operands[nth]);
         opr.map_or_else(
             |e| {
                 *errors = true;
@@ -87,7 +87,7 @@ impl<'a> Parser<'a> {
     fn parse_inst(&mut self, n: &'a str) -> Result<MidInst<'a>, ()> {
         if let Some(i) = Instruction::properties(n) {
             let mut oprs = vec![
-                (RawOperand::Immediate(Immediate::Value(Integer::ZERO)), 0..0);
+                (RawOperand::IntImm(IntImm::Value(Integer::ZERO)), 0..0);
                 i.operands.len()
             ];
             let mut errors = false;
@@ -144,12 +144,12 @@ impl<'a> Parser<'a> {
                 Ok(Token::String(s)) => {
                     for c in s.iter() {
                         self.dw.push((
-                            RawOperand::Immediate(Immediate::Value((*c).into())),
+                            RawOperand::IntImm(IntImm::Value((*c).into())),
                             self.span(),
                         ));
                     }
                 },
-                Ok(_) => match self.parse_operand_with_option(Some(t), &OperandKind::Immediate) {
+                Ok(_) => match self.parse_operand_with_option(Some(t), OperandKind::IntImm) {
                     Ok(w) => self.dw.push(w),
                     Err(e) => self.error_at(e.0, e.1),
                 },
@@ -208,7 +208,7 @@ impl<'a> Parser<'a> {
                 Ok(t) if t.is_name("dw") => {
                     pending_labels.iter().for_each(|i| {
                         self.labels
-                            .insert(i, Immediate::Value(self.dw.len().into()));
+                            .insert(i, IntImm::Value(self.dw.len().into()));
                     });
                     pending_labels.clear();
                     self.parse_add_dw();
@@ -216,7 +216,7 @@ impl<'a> Parser<'a> {
                 Ok(Token::Name(n)) => {
                     pending_labels.iter().for_each(|i| {
                         self.labels
-                            .insert(i, Immediate::InstLoc(self.instructions.len()));
+                            .insert(i, IntImm::InstLoc(self.instructions.len()));
                     });
                     pending_labels.clear();
                     if let Ok(i) = self.parse_inst(n) {
@@ -240,7 +240,7 @@ impl<'a> Parser<'a> {
 
         pending_labels.iter().for_each(|i| {
             self.labels
-                .insert(i, Immediate::InstLoc(self.instructions.len()));
+                .insert(i, IntImm::InstLoc(self.instructions.len()));
         });
 
         let heap_size = self.min_heap().max(
@@ -277,7 +277,7 @@ impl<'a> Parser<'a> {
                 .iter()
                 .map(|i| {
                     self.finalize(i, heap_size)
-                        .try_as_immediate()
+                        .try_as_int_imm()
                         .unwrap()
                 })
                 .collect(),

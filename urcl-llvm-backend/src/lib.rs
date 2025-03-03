@@ -2,7 +2,7 @@ use inkwell::{
     AddressSpace, IntPredicate, basic_block, builder, context, debug_info, debug_info::AsDIScope,
     intrinsics, module, passes, support, targets, types, values,
 };
-use urcl_ast::{Any, Immediate, Instruction, Program, Register};
+use urcl_ast::{Any, IntImm, Instruction, Program, Register};
 
 pub use inkwell::{OptimizationLevel, targets::FileType};
 
@@ -19,7 +19,6 @@ impl CodegenContext {
 
 pub struct CodegenOptions {
     pub use_global: bool,
-    pub float_type: usize,
     pub native_addr: bool,
     pub bounds_safety: bool,
 }
@@ -36,6 +35,8 @@ pub struct Codegen<'a> {
     options: &'a CodegenOptions,
 
     word: types::IntType<'a>,
+    float: types::FloatType<'a>,
+    float_size: u8,
 }
 
 impl<'a> Codegen<'a> {
@@ -73,6 +74,13 @@ impl<'a> Codegen<'a> {
 
         let word = context.0.custom_width_int_type(program.bits);
 
+        let (float, float_size) = match program.bits {
+            128.. => (context.0.f128_type(), 128),
+            64.. => (context.0.f64_type(), 64),
+            32.. => (context.0.f32_type(), 32),
+            _ => (context.0.f16_type(), 16),
+        };
+
         Self {
             context: &context.0,
             builder: context.0.create_builder(),
@@ -85,6 +93,8 @@ impl<'a> Codegen<'a> {
             options,
 
             word,
+            float,
+            float_size,
         }
     }
 
@@ -92,10 +102,10 @@ impl<'a> Codegen<'a> {
         self.di_builder.create_basic_type(name, size, 7, 0).unwrap()
     }
 
-    fn imm_to_word(&self, i: &Immediate) -> values::IntValue<'a> {
+    fn imm_to_word(&self, i: &IntImm) -> values::IntValue<'a> {
         match i {
-            Immediate::Value(v) if v.is_zero() => self.word.const_zero(),
-            Immediate::Value(v) => {
+            IntImm::Value(v) if v.is_zero() => self.word.const_zero(),
+            IntImm::Value(v) => {
                 let unsigned = self.word.const_int_arbitrary_precision(v.as_sign_words().1);
 
                 if v.sign() == dashu::base::Sign::Negative {
@@ -104,19 +114,19 @@ impl<'a> Codegen<'a> {
                     unsigned
                 }
             },
-            Immediate::InstLoc(l) => self.word.const_int(*l as _, false),
+            IntImm::InstLoc(l) => self.word.const_int(*l as _, false),
         }
     }
 
     fn imm_to_addr_or_word(
         &self,
-        i: &Immediate,
+        i: &IntImm,
         native_addr: bool,
         inst_bb: &[basic_block::BasicBlock<'a>],
     ) -> values::IntValue<'a> {
         if native_addr {
             match i {
-                Immediate::Value(v) => {
+                IntImm::Value(v) => {
                     let unsigned = self.word.const_int_arbitrary_precision(v.as_sign_words().1);
 
                     if v.sign() == dashu::base::Sign::Negative {
@@ -125,7 +135,7 @@ impl<'a> Codegen<'a> {
                         unsigned
                     }
                 },
-                Immediate::InstLoc(l) => unsafe { inst_bb[*l].get_address() }
+                IntImm::InstLoc(l) => unsafe { inst_bb[*l].get_address() }
                     .unwrap()
                     .const_to_int(self.word),
             }
@@ -145,14 +155,6 @@ impl<'a> Codegen<'a> {
             .ptr_sized_int_type(&target.get_target_data(), None);
         let ptr_t = self.context.ptr_type(AddressSpace::default());
         let void_t = self.context.void_type();
-
-        let float_t = match self.options.float_type {
-            16 => self.context.f16_type(),
-            32 => self.context.f32_type(),
-            64 => self.context.f64_type(),
-            128 => self.context.f128_type(),
-            _ => panic!("invalid float bit width"),
-        };
 
         let di_word_t = self.di_basic_type("urcl_t", self.program.bits.into());
         let di_mach_t = self.di_basic_type("size_t", mach_t.get_bit_width().into());
@@ -182,6 +184,30 @@ impl<'a> Codegen<'a> {
                 Less => self.builder.build_int_z_extend(i, t, "conv_zext").unwrap(),
                 Equal => i,
             }
+        };
+
+        let bit_itof = |i: values::IntValue<'a>| {
+            let float_it = self
+                .context
+                .custom_width_int_type(self.float_size as _);
+            let i = zext_or_trunc(i, float_it);
+            self.builder
+                .build_bit_cast(i, self.float, "bitw_itof")
+                .unwrap()
+                .into_float_value()
+        };
+
+        let bit_ftoi = |f: values::FloatValue<'a>| {
+            let float_it = self
+                .context
+                .custom_width_int_type(self.float_size as _);
+            let i = self
+                .builder
+                .build_bit_cast(f, float_it, "bitw_ftoi")
+                .unwrap()
+                .into_int_value();
+
+            zext_or_trunc(i, self.word)
         };
 
         let main = self
@@ -393,7 +419,12 @@ impl<'a> Codegen<'a> {
 
             let get_any = |v: &_| match v {
                 Any::Register(r) => get_reg(r),
-                Any::Immediate(i) => self.imm_to_addr_or_word(i, native_addr, &inst_bb),
+                Any::IntImm(i) => self.imm_to_addr_or_word(i, native_addr, &inst_bb),
+                Any::FloatImm(f) => {
+                    // SAFETY: f.to_string() should return a valid float
+                    let f = unsafe { self.float.const_float_from_string(&f.to_string()) };
+                    bit_ftoi(f)
+                },
             };
 
             let get_reg_ptr = |v: &_| match v {
@@ -412,9 +443,8 @@ impl<'a> Codegen<'a> {
 
             let get_any_ptr = |v: &_| match v {
                 Any::Register(r) => get_reg_ptr(r),
-                Any::Immediate(i) => {
-                    let i = self.imm_to_addr_or_word(i, native_addr, &inst_bb);
-                    self.builder.build_store(temp_var, i).unwrap();
+                _ => {
+                    self.builder.build_store(temp_var, get_any(v)).unwrap();
                     temp_var
                 },
             };
@@ -458,15 +488,6 @@ impl<'a> Codegen<'a> {
             };
 
             let cond_br = |c, d: &_| match d {
-                Any::Immediate(d) => {
-                    self.builder
-                        .build_conditional_branch(
-                            c,
-                            inst_bb[usize::try_from(d).unwrap()],
-                            inst_bb[pc + 1],
-                        )
-                        .unwrap();
-                },
                 Any::Register(d) => {
                     let e = self.context.append_basic_block(main, "indir_jump");
                     self.builder
@@ -475,15 +496,26 @@ impl<'a> Codegen<'a> {
                     self.builder.position_at_end(e);
                     indir_jump_to(get_reg(d));
                 },
+                Any::IntImm(d) => {
+                    self.builder
+                        .build_conditional_branch(
+                            c,
+                            inst_bb[usize::try_from(d).unwrap()],
+                            inst_bb[pc + 1],
+                        )
+                        .unwrap();
+                },
+                Any::FloatImm(_) => panic!("jump to float??"),
             };
 
             let uncond_br = |d: &_| match d {
-                Any::Immediate(d) => {
+                Any::Register(d) => indir_jump_to(get_reg(d)),
+                Any::IntImm(d) => {
                     self.builder
                         .build_unconditional_branch(inst_bb[usize::try_from(d).unwrap()])
                         .unwrap();
                 },
-                Any::Register(d) => indir_jump_to(get_reg(d)),
+                Any::FloatImm(_) => panic!("jump to float??"),
             };
 
             self.builder.position_at_end(inst_bb[pc]);
@@ -527,30 +559,6 @@ impl<'a> Codegen<'a> {
                 self.builder.build_store(stack_ptr, sp_new).unwrap();
 
                 read_ram(sp_old)
-            };
-
-            let bit_itof = |i: values::IntValue<'a>| {
-                let float_it = self
-                    .context
-                    .custom_width_int_type(self.options.float_type as _);
-                let i = zext_or_trunc(i, float_it);
-                self.builder
-                    .build_bit_cast(i, float_t, "bitw_itof")
-                    .unwrap()
-                    .into_float_value()
-            };
-
-            let bit_ftoi = |f: values::FloatValue<'a>| {
-                let float_it = self
-                    .context
-                    .custom_width_int_type(self.options.float_type as _);
-                let i = self
-                    .builder
-                    .build_bit_cast(f, float_it, "bitw_ftoi")
-                    .unwrap()
-                    .into_int_value();
-
-                zext_or_trunc(i, self.word)
             };
 
             macro_rules! gen {
@@ -997,7 +1005,7 @@ impl<'a> Codegen<'a> {
                     self.builder.build_int_truncate(s, self.word, "sumlt_trunc").unwrap()
                 }),
                 Instruction::ItoF(d, a) => gen!(1op d a |a| {
-                    let f = self.builder.build_signed_int_to_float(a, float_t, "itof").unwrap();
+                    let f = self.builder.build_signed_int_to_float(a, self.float, "itof").unwrap();
                     bit_ftoi(f)
                 }),
                 Instruction::FtoI(d, a) => gen!(1op d a |a| {
@@ -1008,7 +1016,7 @@ impl<'a> Codegen<'a> {
                     let f = bit_itof(a);
                     let round = intrinsics::Intrinsic::find("llvm.round")
                         .unwrap()
-                        .get_declaration(&self.module, &[float_t.into()])
+                        .get_declaration(&self.module, &[self.float.into()])
                         .unwrap();
                     let r = self.builder.build_call(round, &[f.into()], "frtoi_round")
                         .unwrap()
@@ -1033,7 +1041,7 @@ impl<'a> Codegen<'a> {
                 Instruction::FSqrt(d, a) => gen!(1fop d a |a: values::FloatValue<'a>| {
                     let round = intrinsics::Intrinsic::find("llvm.sqrt")
                         .unwrap()
-                        .get_declaration(&self.module, &[float_t.into()])
+                        .get_declaration(&self.module, &[self.float.into()])
                         .unwrap();
                     self.builder.build_call(round, &[a.into()], "fsqrt")
                         .unwrap()
@@ -1044,7 +1052,7 @@ impl<'a> Codegen<'a> {
                 Instruction::FAbs(d, a) => gen!(1fop d a |a: values::FloatValue<'a>| {
                     let round = intrinsics::Intrinsic::find("llvm.fabs")
                         .unwrap()
-                        .get_declaration(&self.module, &[float_t.into()])
+                        .get_declaration(&self.module, &[self.float.into()])
                         .unwrap();
                     self.builder.build_call(round, &[a.into()], "fabs")
                         .unwrap()

@@ -3,7 +3,7 @@ use urcl_ast::OperandKind;
 #[derive(Debug, Clone)]
 pub enum ParseError {
     LexError(()),
-    InvalidOperand(&'static OperandKind),
+    InvalidOperand(OperandKind),
     UnexpectedEof,
     ExpectedNewline,
     UnknownMacro,
