@@ -1,0 +1,227 @@
+BITS 16
+MINREG 15
+MINSTACK 32
+JMP .output__main
+.output_g_F_YCOORD
+DW _
+.output_g_F_XCOORD
+DW _
+.output_g_F_X
+DW _
+.output_g_F_Y
+DW _
+.output_g_F_INSIDE
+DW _
+.output__main
+MOV R1 SP
+IMM R4 .output_g_F_YCOORD
+IMM R3 1
+IMM R2 0
+MOV R2 R3
+STR R4 R2
+IMM R5 64
+IMM R3 1
+IMM R2 0
+MOV R2 R3
+SSETL R4 R2 0
+LOD R2 .output_g_F_YCOORD
+XOR R3 R2 R4
+XOR R2 R5 R4
+SSETLE R2 R3 R2
+BRZ .output_cont_F R2
+.output_do__2
+IMM R4 .output_g_F_XCOORD
+IMM R3 1
+IMM R2 0
+MOV R2 R3
+STR R4 R2
+IMM R5 128
+IMM R3 1
+IMM R2 0
+MOV R2 R3
+SSETL R4 R2 0
+LOD R2 .output_g_F_XCOORD
+XOR R3 R2 R4
+XOR R2 R5 R4
+SSETLE R2 R3 R2
+BRZ .output_cont_do__2 R2
+.output_do__3
+IMM R4 0
+IMM R2 0
+IMM R3 2.0000000E+00
+ITOF R2 R4
+FSUB R4 R2 R3
+IMM R3 2.5000000E+00
+LOD R2 .output_g_F_XCOORD
+ITOF R2 R2
+FMLT R3 R3 R2
+IMM R2 1.2800000E+02
+FDIV R2 R3 R2
+FADD R3 R4 R2
+IMM R2 .output_g_F_X
+STR R2 R3
+IMM R4 1.3750000E+00
+IMM R3 2.5000000E+00
+LOD R2 .output_g_F_YCOORD
+ITOF R2 R2
+FMLT R3 R3 R2
+IMM R2 6.4000000E+01
+FDIV R2 R3 R2
+FSUB R3 R4 R2
+IMM R2 .output_g_F_Y
+STR R2 R3
+IMM R4 .output_g_F_Y
+IMM R3 .output_g_F_X
+IMM R2 .output_g_F_INSIDE
+PSH R4
+PSH R3
+PSH R2
+CAL .output_s_F_converges
+ADD SP SP 3
+LOD R2 .output_g_F_INSIDE
+BRZ .output_else__5 R2
+.output_if__4
+CAL .main_s_printsolid
+JMP .output_cont_do__3
+.output_else__5
+CAL .main_s__printblank
+.output_cont_do__3
+IMM R6 .output_g_F_XCOORD
+LOD R5 R6
+IMM R3 1
+IMM R2 0
+MOV R2 R3
+SSETL R4 R2 0
+ADD R3 R5 R2
+STR R6 R3
+IMM R2 128
+XOR R3 R3 R4
+XOR R2 R2 R4
+SSETLE R2 R3 R2
+BNZ .output_do__3 R2
+.output_cont_do__2
+CAL .main_s__printnewline
+IMM R6 .output_g_F_YCOORD
+LOD R5 R6
+IMM R3 1
+IMM R2 0
+MOV R2 R3
+SSETL R4 R2 0
+ADD R3 R5 R2
+STR R6 R3
+IMM R2 64
+XOR R3 R3 R4
+XOR R2 R2 R4
+SSETLE R2 R3 R2
+BNZ .output_do__2 R2
+.output_cont_F
+HLT
+.output_s_F_converges
+PSH R1
+MOV R1 SP
+ADD SP SP -4
+IMM R4 0
+IMM R2 0
+ADD R3 R1 -2
+ITOF R2 R4
+STR R3 R2
+IMM R4 0
+IMM R2 0
+ADD R3 R1 -3
+ITOF R2 R4
+STR R3 R2
+IMM R3 -1
+ADD R2 R1 2
+LOD R2 R2
+STR R2 R3
+ADD R4 R1 -1
+IMM R3 1
+IMM R2 0
+MOV R2 R3
+STR R4 R2
+IMM R5 48
+IMM R3 1
+IMM R2 0
+MOV R2 R3
+SSETL R4 R2 0
+LLOD R2 R1 -1
+XOR R3 R2 R4
+XOR R2 R5 R4
+SSETLE R2 R3 R2
+BRZ .output_cont_F_converges R2
+.output_do__0
+LLOD R3 R1 -2
+LLOD R2 R1 -2
+FMLT R4 R3 R2
+LLOD R3 R1 -3
+LLOD R2 R1 -3
+FMLT R2 R3 R2
+FSUB R3 R4 R2
+LLOD R2 R1 3
+LOD R2 R2
+FADD R3 R3 R2
+ADD R2 R1 -4
+STR R2 R3
+IMM R4 2
+IMM R2 0
+LLOD R3 R1 -2
+ITOF R2 R4
+FMLT R3 R2 R3
+LLOD R2 R1 -3
+FMLT R3 R3 R2
+LLOD R2 R1 4
+LOD R2 R2
+FADD R3 R3 R2
+ADD R2 R1 -3
+STR R2 R3
+LLOD R3 R1 -4
+ADD R2 R1 -2
+STR R2 R3
+LLOD R4 R1 -2
+IMM R3 2
+IMM R2 0
+ITOF R2 R3
+SSETG R5 R4 R2
+LLOD R4 R1 -3
+IMM R3 2
+IMM R2 0
+ITOF R2 R3
+SSETG R2 R4 R2
+OR R2 R5 R2
+BRZ .output_cont_do__0 R2
+.output_if__1
+IMM R3 0
+ADD R2 R1 2
+LOD R2 R2
+STR R2 R3
+MOV SP R1
+POP R1
+RET
+.output_cont_do__0
+ADD R6 R1 -1
+LOD R5 R6
+IMM R3 1
+IMM R2 0
+MOV R2 R3
+SSETL R4 R2 0
+ADD R3 R5 R2
+STR R6 R3
+IMM R2 48
+XOR R3 R3 R4
+XOR R2 R2 R4
+SSETLE R2 R3 R2
+BNZ .output_do__0 R2
+.output_cont_F_converges
+MOV SP R1
+POP R1
+RET
+.main_s__printblank
+OUT%TEXT ' '
+RET
+.main_s_printsolid
+OUT%TEXT '#'
+RET
+.main_s__printnewline
+OUT%TEXT '\n'
+RET
+

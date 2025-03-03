@@ -50,6 +50,9 @@ impl<'a> Parser<'a> {
         }
 
         match t {
+            Token::Name("_") => {
+                Ok((RawOperand::IntImm(IntImm::Value(0.into())), self.span()))
+            },
             Token::Reg(r) if ok.can_reg() => {
                 Ok((RawOperand::Register(r), self.span()))
             },

@@ -24,7 +24,7 @@ pub enum Token<'a> {
     Heap(Integer),
     #[regex(r"\~[\+\-]?(\d+|0b[01]+|0o[0-7]+|0x[0-9a-fA-F]+)", callback = |lex| parse_int(&lex.slice()[1..]))]
     Relative(Integer),
-    #[regex(r"[\+\-]?\d+\.\d*", callback = |lex| Some(lex.slice().parse::<Decimal>().ok()?.into()))]
+    #[regex(r"[\+\-]?\d+\.\d*([Ee][\+\-]?\d+)?", callback = |lex| Some(lex.slice().parse::<Decimal>().ok()?.into()))]
     Float(DecimalHash),
 
     #[regex(r#""([^"]|\\")*""#, callback = |lex| parse_str(&lex.slice()[1..]))]
