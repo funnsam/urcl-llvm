@@ -66,7 +66,7 @@ impl<'a> Parser<'a> {
             },
             _ => {
                 self.error_at(
-                    ParseError::InvalidOperand(OperandKind::IntImm),
+                    ParseError::InvalidOperand(OperandKind::AnyInt),
                     op.1.clone(),
                 );
                 Natural::ONE
@@ -157,7 +157,7 @@ impl<'a> Parser<'a> {
         macro_rules! expr {
             ($expr:tt $($op:tt),*) => {{
                 $(
-                    let $op = self.parse_operand(OperandKind::IntImm)
+                    let $op = self.parse_operand(OperandKind::AnyInt)
                     .map_or_else(
                         |e| {
                             let span = e.1.clone();

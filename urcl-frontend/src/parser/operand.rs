@@ -20,6 +20,7 @@ pub(crate) enum RawOperand<'a> {
     Heap(Integer),
     Label(&'a str),
     MacroExpr(Box<MacroExpr<'a>>),
+    Undefined,
 }
 
 impl<'a> Parser<'a> {
@@ -53,20 +54,20 @@ impl<'a> Parser<'a> {
         }
 
         match t {
-            Token::Name("_") => Ok((RawOperand::IntImm(IntImm::Value(0.into())), self.span())),
+            Token::Name("_") => Ok((RawOperand::Undefined, self.span())),
             Token::Reg(r) if ok.can_reg() => Ok((RawOperand::Register(r), self.span())),
-            Token::Integer(i) if ok.can_int_imm() => {
+            Token::Integer(i) if ok.can_int() => {
                 Ok((RawOperand::IntImm(IntImm::Value(i)), self.span()))
             },
-            Token::Float(f) if ok.can_float_imm() => {
+            Token::Float(f) if ok.can_float() => {
                 Ok((RawOperand::FloatImm(FloatImm(f.into())), self.span()))
             },
-            Token::Heap(h) if ok.can_int_imm() => Ok((RawOperand::Heap(h), self.span())),
-            Token::Macro(m) if ok.can_int_imm() => self
+            Token::Heap(h) if ok.can_int() => Ok((RawOperand::Heap(h), self.span())),
+            Token::Macro(m) if ok.can_int() => self
                 .parse_macro_expr(m)
                 .ok_or((ParseError::UnknownMacro, self.span()))
                 .map(|(m, s)| (m.into(), s)),
-            Token::ParenStart if ok.can_int_imm() => {
+            Token::ParenStart if ok.can_int() => {
                 let inner = self.parse_operand(ok);
 
                 if inner.is_ok() {
@@ -77,8 +78,8 @@ impl<'a> Parser<'a> {
 
                 inner
             },
-            Token::Label(l) if ok.can_int_imm() => Ok((RawOperand::Label(l), self.span())),
-            Token::Relative(r) if ok.can_int_imm() => Ok((
+            Token::Label(l) if ok.can_int() => Ok((RawOperand::Label(l), self.span())),
+            Token::Relative(r) if ok.can_int() => Ok((
                 RawOperand::IntImm(IntImm::InstLoc(
                     (Integer::from(self.instructions.len()) + r)
                         .to_usize()
@@ -86,7 +87,7 @@ impl<'a> Parser<'a> {
                 )),
                 self.span(),
             )),
-            Token::Port(p) if ok.can_int_imm() => {
+            Token::Port(p) if ok.can_int() => {
                 let p = Port::from_str(p).map_err(|_| (ParseError::UnknownPort, self.span()))?;
 
                 Ok((
@@ -94,7 +95,7 @@ impl<'a> Parser<'a> {
                     self.span(),
                 ))
             },
-            Token::PortInt(p) if ok.can_int_imm() => {
+            Token::PortInt(p) if ok.can_int() => {
                 Ok((RawOperand::IntImm(IntImm::Value(p.into())), self.span()))
             },
             _ => Err((ParseError::InvalidOperand(ok), self.span())),
@@ -115,6 +116,7 @@ impl<'a> Parser<'a> {
                 |v| v.clone(),
             )),
             RawOperand::MacroExpr(mx) => Any::IntImm(self.eval_macro_expr(mx, heap_size)),
+            RawOperand::Undefined => Any::Undefined,
         }
     }
 }

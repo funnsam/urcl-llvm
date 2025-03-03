@@ -2,7 +2,7 @@ use inkwell::{
     AddressSpace, IntPredicate, basic_block, builder, context, debug_info, debug_info::AsDIScope,
     intrinsics, module, passes, support, targets, types, values,
 };
-use urcl_ast::{Any, Instruction, IntImm, Program, Register};
+use urcl_ast::{Any, AnyFloat, AnyImm, AnyInt, Instruction, IntImm, Program, Register};
 
 pub use inkwell::{OptimizationLevel, targets::FileType};
 
@@ -102,7 +102,7 @@ impl<'a> Codegen<'a> {
         self.di_builder.create_basic_type(name, size, 7, 0).unwrap()
     }
 
-    fn imm_to_word(&self, i: &IntImm) -> values::IntValue<'a> {
+    fn int_imm_to_word(&self, i: &IntImm) -> values::IntValue<'a> {
         match i {
             IntImm::Value(v) if v.is_zero() => self.word.const_zero(),
             IntImm::Value(v) => {
@@ -118,7 +118,7 @@ impl<'a> Codegen<'a> {
         }
     }
 
-    fn imm_to_addr_or_word(
+    fn int_imm_to_addr_or_word(
         &self,
         i: &IntImm,
         native_addr: bool,
@@ -140,7 +140,24 @@ impl<'a> Codegen<'a> {
                     .const_to_int(self.word),
             }
         } else {
-            self.imm_to_word(i)
+            self.int_imm_to_word(i)
+        }
+    }
+
+    fn imm_to_addr_or_word(
+        &self,
+        i: &AnyImm,
+        native_addr: bool,
+        inst_bb: &[basic_block::BasicBlock<'a>],
+    ) -> values::IntValue<'a> {
+        match i {
+            AnyImm::IntImm(i) => self.int_imm_to_addr_or_word(i, native_addr, inst_bb),
+            AnyImm::FloatImm(f) => {
+                // SAFETY: f.to_string() should return a valid float
+                let f = unsafe { self.float.const_float_from_string(&f.to_string()) };
+                todo!();
+            },
+            AnyImm::Undefined => self.word.get_undef(),
         }
     }
 
@@ -413,14 +430,29 @@ impl<'a> Codegen<'a> {
                 },
             };
 
+            let get_any_int  = |v: &_| match v {
+                AnyInt::Register(r) => get_reg(r),
+                AnyInt::IntImm(i) => self.int_imm_to_addr_or_word(i, native_addr, &inst_bb),
+            };
+
+            let get_any_float = |v: &_| match v {
+                AnyFloat::Register(r) => get_reg(r),
+                AnyFloat::FloatImm(f) => {
+                    // SAFETY: f.to_string() should return a valid float
+                    let f = unsafe { self.float.const_float_from_string(&f.to_string()) };
+                    bit_ftoi(f)
+                },
+            };
+
             let get_any = |v: &_| match v {
                 Any::Register(r) => get_reg(r),
-                Any::IntImm(i) => self.imm_to_addr_or_word(i, native_addr, &inst_bb),
+                Any::IntImm(i) => self.int_imm_to_addr_or_word(i, native_addr, &inst_bb),
                 Any::FloatImm(f) => {
                     // SAFETY: f.to_string() should return a valid float
                     let f = unsafe { self.float.const_float_from_string(&f.to_string()) };
                     bit_ftoi(f)
                 },
+                Any::Undefined => self.word.get_undef(),
             };
 
             let get_reg_ptr = |v: &_| match v {
@@ -484,7 +516,7 @@ impl<'a> Codegen<'a> {
             };
 
             let cond_br = |c, d: &_| match d {
-                Any::Register(d) => {
+                AnyInt::Register(d) => {
                     let e = self.context.append_basic_block(main, "indir_jump");
                     self.builder
                         .build_conditional_branch(c, e, inst_bb[pc + 1])
@@ -492,7 +524,7 @@ impl<'a> Codegen<'a> {
                     self.builder.position_at_end(e);
                     indir_jump_to(get_reg(d));
                 },
-                Any::IntImm(d) => {
+                AnyInt::IntImm(d) => {
                     self.builder
                         .build_conditional_branch(
                             c,
@@ -501,17 +533,15 @@ impl<'a> Codegen<'a> {
                         )
                         .unwrap();
                 },
-                Any::FloatImm(_) => panic!("jump to float??"),
             };
 
             let uncond_br = |d: &_| match d {
-                Any::Register(d) => indir_jump_to(get_reg(d)),
-                Any::IntImm(d) => {
+                AnyInt::Register(d) => indir_jump_to(get_reg(d)),
+                AnyInt::IntImm(d) => {
                     self.builder
                         .build_unconditional_branch(inst_bb[usize::try_from(d).unwrap()])
                         .unwrap();
                 },
-                Any::FloatImm(_) => panic!("jump to float??"),
             };
 
             self.builder.position_at_end(inst_bb[pc]);
@@ -558,9 +588,9 @@ impl<'a> Codegen<'a> {
             };
 
             macro_rules! gen {
-                (2op $d: tt $a: tt $b: tt $gen: expr) => {{
-                    let a = get_any($a);
-                    let b = get_any($b);
+                (2op $d:tt $a:tt $b:tt $gen:expr) => {{
+                    let a = get_any_int($a);
+                    let b = get_any_int($b);
                     #[allow(clippy::blocks_in_conditions)]
                     if set_reg($d, $gen(a, b)) {
                         self.builder
@@ -568,7 +598,7 @@ impl<'a> Codegen<'a> {
                             .unwrap();
                     }
                 }};
-                (1op $d: tt $a: tt $gen: expr) => {{
+                (1aop $d:tt $a:tt $gen:expr) => {{
                     let a = get_any($a);
                     #[allow(clippy::blocks_in_conditions)]
                     if set_reg($d, $gen(a)) {
@@ -577,7 +607,16 @@ impl<'a> Codegen<'a> {
                             .unwrap();
                     }
                 }};
-                (none $d: tt $gen: expr) => {{
+                (1op $d:tt $a:tt $gen:expr) => {{
+                    let a = get_any_int($a);
+                    #[allow(clippy::blocks_in_conditions)]
+                    if set_reg($d, $gen(a)) {
+                        self.builder
+                            .build_unconditional_branch(inst_bb[pc + 1])
+                            .unwrap();
+                    }
+                }};
+                (none $d:tt $gen:expr) => {{
                     #[allow(clippy::blocks_in_conditions)]
                     if set_reg($d, $gen()) {
                         self.builder
@@ -585,20 +624,20 @@ impl<'a> Codegen<'a> {
                             .unwrap();
                     }
                 }};
-                (2bc $d: tt $a: tt $b: tt $cond: expr) => {{
-                    let a = get_any($a);
-                    let b = get_any($b);
+                (2bc $d:tt $a:tt $b:tt $cond:expr) => {{
+                    let a = get_any_int($a);
+                    let b = get_any_int($b);
                     let c = $cond(a, b);
                     cond_br(c, $d);
                 }};
-                (1bc $d: tt $a: tt $cond: expr) => {{
-                    let a = get_any($a);
+                (1bc $d:tt $a:tt $cond:expr) => {{
+                    let a = get_any_int($a);
                     let c = $cond(a);
                     cond_br(c, $d);
                 }};
-                (2set $d: tt $a: tt $b: tt $gen: expr) => {{
-                    let a = get_any($a);
-                    let b = get_any($b);
+                (2set $d:tt $a:tt $b:tt $gen:expr) => {{
+                    let a = get_any_int($a);
+                    let b = get_any_int($b);
                     let c = $gen(a, b);
                     let c = self
                         .builder
@@ -611,10 +650,10 @@ impl<'a> Codegen<'a> {
                             .unwrap();
                     }
                 }};
-                (2fop $d: tt $a: tt $b: tt $gen: expr) => {{
-                    let a = get_any($a);
+                (2fop $d:tt $a:tt $b:tt $gen:expr) => {{
+                    let a = get_any_float($a);
                     let a = bit_itof(a);
-                    let b = get_any($b);
+                    let b = get_any_float($b);
                     let b = bit_itof(b);
                     let c = $gen(a, b);
                     let c = bit_ftoi(c);
@@ -625,13 +664,22 @@ impl<'a> Codegen<'a> {
                             .unwrap();
                     }
                 }};
-                (1fop $d: tt $a: tt $gen: expr) => {{
-                    let a = get_any($a);
+                (1fop $d:tt $a:tt $gen:expr) => {{
+                    let a = get_any_float($a);
                     let a = bit_itof(a);
                     let c = $gen(a);
                     let c = bit_ftoi(c);
                     #[allow(clippy::blocks_in_conditions)]
                     if set_reg($d, c) {
+                        self.builder
+                            .build_unconditional_branch(inst_bb[pc + 1])
+                            .unwrap();
+                    }
+                }};
+                (ftoi $d:tt $a:tt $gen:expr) => {{
+                    let a = get_any_float($a);
+                    #[allow(clippy::blocks_in_conditions)]
+                    if set_reg($d, $gen(a)) {
                         self.builder
                             .build_unconditional_branch(inst_bb[pc + 1])
                             .unwrap();
@@ -648,7 +696,7 @@ impl<'a> Codegen<'a> {
                 }),
                 Instruction::Lod(d, a) => gen!(1op d a read_ram),
                 Instruction::Str(a, v) => {
-                    let a = get_any(a);
+                    let a = get_any_int(a);
                     let v = get_any(v);
                     write_ram(a, v);
                     self.builder
@@ -665,7 +713,7 @@ impl<'a> Codegen<'a> {
                 Instruction::Sub(d, a, b) => gen!(2op d a b |a, b| {
                     self.builder.build_int_sub(a, b, "sub").unwrap()
                 }),
-                Instruction::Imm(d, v) | Instruction::Mov(d, v) => gen!(1op d v |v| v),
+                Instruction::Imm(d, v) | Instruction::Mov(d, v) => gen!(1aop d v |v| v),
                 Instruction::Jmp(i) => uncond_br(i),
                 Instruction::Nop() => {
                     self.builder
@@ -781,7 +829,7 @@ impl<'a> Codegen<'a> {
                 },
                 Instruction::Hlt() => ret(),
                 Instruction::Cpy(a, b) => {
-                    write_ram(get_any(a), read_ram(get_any(b)));
+                    write_ram(get_any_int(a), read_ram(get_any_int(b)));
                     self.builder
                         .build_unconditional_branch(inst_bb[pc + 1])
                         .unwrap();
@@ -912,8 +960,8 @@ impl<'a> Codegen<'a> {
                     read_ram(addr)
                 }),
                 Instruction::LStr(a, o, v) => {
-                    let a = get_any(a);
-                    let o = get_any(o);
+                    let a = get_any_int(a);
+                    let o = get_any_int(o);
                     let v = get_any(v);
                     let addr = self.builder.build_int_add(a, o, "lstr_addr").unwrap();
                     write_ram(addr, v);
@@ -1004,11 +1052,11 @@ impl<'a> Codegen<'a> {
                     let f = self.builder.build_signed_int_to_float(a, self.float, "itof").unwrap();
                     bit_ftoi(f)
                 }),
-                Instruction::FtoI(d, a) => gen!(1op d a |a| {
+                Instruction::FtoI(d, a) => gen!(ftoi d a |a| {
                     let f = bit_itof(a);
                     self.builder.build_float_to_signed_int(f, self.word, "ftoi").unwrap()
                 }),
-                Instruction::FRtoI(d, a) => gen!(1op d a |a| {
+                Instruction::FRtoI(d, a) => gen!(ftoi d a |a| {
                     let f = bit_itof(a);
                     let round = intrinsics::Intrinsic::find("llvm.round")
                         .unwrap()

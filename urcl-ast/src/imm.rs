@@ -2,6 +2,8 @@ use core::fmt;
 use dashu::{Decimal, Integer};
 use std::borrow::Cow;
 
+use crate::Any;
+
 #[derive(Clone)]
 pub enum IntImm {
     Value(Integer),
@@ -83,4 +85,31 @@ impl From<Decimal> for FloatImm {
 
 impl From<FloatImm> for Decimal {
     fn from(value: FloatImm) -> Self { value.0 }
+}
+
+#[derive(Clone, strum::EnumTryAs)]
+pub enum AnyImm {
+    IntImm(IntImm),
+    FloatImm(FloatImm),
+    Undefined,
+}
+
+impl From<AnyImm> for Any {
+    fn from(value: AnyImm) -> Self {
+        match value {
+            AnyImm::IntImm(i) => Self::IntImm(i),
+            AnyImm::FloatImm(i) => Self::FloatImm(i),
+            AnyImm::Undefined => Self::Undefined,
+        }
+    }
+}
+
+impl fmt::Debug for AnyImm {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::IntImm(r) => r.fmt(f),
+            Self::FloatImm(r) => r.fmt(f),
+            Self::Undefined => "undefined".fmt(f),
+        }
+    }
 }

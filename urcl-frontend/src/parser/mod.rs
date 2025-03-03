@@ -149,7 +149,7 @@ impl<'a> Parser<'a> {
                             .push((RawOperand::IntImm(IntImm::Value((*c).into())), self.span()));
                     }
                 },
-                Ok(_) => match self.parse_operand_with_option(Some(t), OperandKind::IntImm) {
+                Ok(_) => match self.parse_operand_with_option(Some(t), OperandKind::AnyImm) {
                     Ok(w) => self.dw.push(w),
                     Err(e) => self.error_at(e.0, e.1),
                 },
@@ -273,7 +273,7 @@ impl<'a> Parser<'a> {
             dw: self
                 .dw
                 .iter()
-                .map(|i| self.finalize(i, heap_size).try_as_int_imm().unwrap())
+                .map(|i| self.finalize(i, heap_size).try_as_any_imm().unwrap())
                 .collect(),
         };
 
