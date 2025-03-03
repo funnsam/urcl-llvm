@@ -1,6 +1,6 @@
 use core::str::FromStr;
 
-use dashu::{Integer, Natural};
+use dashu::Integer;
 use logos::Span;
 use num_traits::ToPrimitive;
 use urcl_ast::{Any, FloatImm, IntImm, OperandKind, Port, Register};
@@ -116,21 +116,5 @@ impl<'a> Parser<'a> {
             )),
             RawOperand::MacroExpr(mx) => Any::IntImm(self.eval_macro_expr(mx, heap_size)),
         }
-    }
-
-    pub(crate) fn bits_vals(&self) -> Natural { Natural::ONE << self.bits() as usize }
-
-    pub(crate) fn bits_umax(&self) -> Natural { self.bits_vals() - Natural::ONE }
-
-    pub(crate) fn bits_umsb(&self) -> Natural {
-        Natural::ONE << self.bits().saturating_sub(1) as usize
-    }
-
-    pub(crate) fn bits_smax(&self) -> Natural {
-        (Natural::ONE << self.bits().saturating_sub(1) as usize) - Natural::ONE
-    }
-
-    pub(crate) fn bits_smsb(&self) -> Natural {
-        Natural::ONE << self.bits().saturating_sub(2) as usize
     }
 }

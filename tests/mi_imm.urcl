@@ -1,4 +1,4 @@
-bits 8
+bits 7
 
 @define case_result %numb
 @define test_cases %int
@@ -7,10 +7,10 @@ bits 8
 @define total_tests %uint
 imm r1 1
 
-out total_tests 9
+out total_tests 11
 
 // @bits
-    sub r1 @bits 8
+    sub r1 @bits 7
     out case_result r1
 out test_cases 1
 out test_end test_end_data
@@ -45,28 +45,42 @@ out test_end test_end_data
 imm r1 1
 
 // @msb
-    sub r1 @msb 128
+    sub r1 @msb 64
     out case_result r1
 out test_cases 1
 out test_end test_end_data
 imm r1 1
 
 // @smsb
-    sub r1 @smsb 64
+    sub r1 @smsb 32
     out case_result r1
 out test_cases 1
 out test_end test_end_data
 imm r1 1
 
 // @max
-    sub r1 @max 255
+    sub r1 @max 127
     out case_result r1
 out test_cases 1
 out test_end test_end_data
 imm r1 1
 
 // @smax
-    sub r1 @smax 127
+    sub r1 @smax 63
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1
+
+// @uhalf
+    sub r1 @uhalf 0x70
+    out case_result r1
+out test_cases 1
+out test_end test_end_data
+imm r1 1
+
+// @lhalf
+    sub r1 @lhalf 0x0f
     out case_result r1
 out test_cases 1
 out test_end test_end_data
