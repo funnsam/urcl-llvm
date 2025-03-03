@@ -5,9 +5,12 @@ use logos::Span;
 use num_traits::ToPrimitive;
 use urcl_ast::{Any, FloatImm, IntImm, OperandKind, Port, Register};
 
-use crate::{lexer::{LexResult, Token}, parser::util::expect_some_token};
+use crate::{
+    lexer::{LexResult, Token},
+    parser::util::expect_some_token,
+};
 
-use super::{macro_expr::MacroExpr, ParseError, Parser};
+use super::{ParseError, Parser, macro_expr::MacroExpr};
 
 #[derive(Debug, Clone)]
 pub(crate) enum RawOperand<'a> {
@@ -50,26 +53,19 @@ impl<'a> Parser<'a> {
         }
 
         match t {
-            Token::Name("_") => {
-                Ok((RawOperand::IntImm(IntImm::Value(0.into())), self.span()))
-            },
-            Token::Reg(r) if ok.can_reg() => {
-                Ok((RawOperand::Register(r), self.span()))
-            },
+            Token::Name("_") => Ok((RawOperand::IntImm(IntImm::Value(0.into())), self.span())),
+            Token::Reg(r) if ok.can_reg() => Ok((RawOperand::Register(r), self.span())),
             Token::Integer(i) if ok.can_int_imm() => {
                 Ok((RawOperand::IntImm(IntImm::Value(i)), self.span()))
             },
             Token::Float(f) if ok.can_float_imm() => {
                 Ok((RawOperand::FloatImm(FloatImm(f.into())), self.span()))
             },
-            Token::Heap(h) if ok.can_int_imm() => {
-                Ok((RawOperand::Heap(h), self.span()))
-            },
-            Token::Macro(m) if ok.can_int_imm() => {
-                self.parse_macro_expr(m)
-                    .ok_or((ParseError::UnknownMacro, self.span()))
-                    .map(|(m, s)| (m.into(), s))
-            },
+            Token::Heap(h) if ok.can_int_imm() => Ok((RawOperand::Heap(h), self.span())),
+            Token::Macro(m) if ok.can_int_imm() => self
+                .parse_macro_expr(m)
+                .ok_or((ParseError::UnknownMacro, self.span()))
+                .map(|(m, s)| (m.into(), s)),
             Token::ParenStart if ok.can_int_imm() => {
                 let inner = self.parse_operand(ok);
 
@@ -81,9 +77,7 @@ impl<'a> Parser<'a> {
 
                 inner
             },
-            Token::Label(l) if ok.can_int_imm() => {
-                Ok((RawOperand::Label(l), self.span()))
-            },
+            Token::Label(l) if ok.can_int_imm() => Ok((RawOperand::Label(l), self.span())),
             Token::Relative(r) if ok.can_int_imm() => Ok((
                 RawOperand::IntImm(IntImm::InstLoc(
                     (Integer::from(self.instructions.len()) + r)
@@ -100,10 +94,9 @@ impl<'a> Parser<'a> {
                     self.span(),
                 ))
             },
-            Token::PortInt(p) if ok.can_int_imm() => Ok((
-                RawOperand::IntImm(IntImm::Value(p.into())),
-                self.span(),
-            )),
+            Token::PortInt(p) if ok.can_int_imm() => {
+                Ok((RawOperand::IntImm(IntImm::Value(p.into())), self.span()))
+            },
             _ => Err((ParseError::InvalidOperand(ok), self.span())),
         }
     }
@@ -121,9 +114,7 @@ impl<'a> Parser<'a> {
                 },
                 |v| v.clone(),
             )),
-            RawOperand::MacroExpr(mx) => {
-                Any::IntImm(self.eval_macro_expr(mx, heap_size))
-            },
+            RawOperand::MacroExpr(mx) => Any::IntImm(self.eval_macro_expr(mx, heap_size)),
         }
     }
 

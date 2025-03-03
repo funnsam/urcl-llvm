@@ -70,25 +70,17 @@ impl From<IntImm> for Integer {
 pub struct FloatImm(pub Decimal);
 
 impl fmt::Debug for FloatImm {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
-    }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { self.0.fmt(f) }
 }
 
 impl fmt::Display for FloatImm {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
-    }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { self.0.fmt(f) }
 }
 
 impl From<Decimal> for FloatImm {
-    fn from(value: Decimal) -> Self {
-        Self(value)
-    }
+    fn from(value: Decimal) -> Self { Self(value) }
 }
 
 impl From<FloatImm> for Decimal {
-    fn from(value: FloatImm) -> Self {
-        value.0
-    }
+    fn from(value: FloatImm) -> Self { value.0 }
 }

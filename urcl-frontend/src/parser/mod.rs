@@ -14,7 +14,7 @@ use dashu::Integer;
 use error::ParseError;
 use logos::Span;
 use operand::RawOperand;
-use urcl_ast::{IntImm, InstProperties, Instruction, OperandKind, Program};
+use urcl_ast::{InstProperties, Instruction, IntImm, OperandKind, Program};
 
 type MidInst<'a> = (&'a str, Vec<(RawOperand<'a>, Span)>, Span);
 
@@ -86,10 +86,8 @@ impl<'a> Parser<'a> {
 
     fn parse_inst(&mut self, n: &'a str) -> Result<MidInst<'a>, ()> {
         if let Some(i) = Instruction::properties(n) {
-            let mut oprs = vec![
-                (RawOperand::IntImm(IntImm::Value(Integer::ZERO)), 0..0);
-                i.operands.len()
-            ];
+            let mut oprs =
+                vec![(RawOperand::IntImm(IntImm::Value(Integer::ZERO)), 0..0); i.operands.len()];
             let mut errors = false;
 
             if let (true, Some(j)) = (self.feature("port_v2"), i.port_v2) {
@@ -108,7 +106,11 @@ impl<'a> Parser<'a> {
                 }
             }
 
-            if errors { self.wait_nl() } else { self.expect_nl() };
+            if errors {
+                self.wait_nl()
+            } else {
+                self.expect_nl()
+            };
             (!errors).then_some((n, oprs, self.total_span())).ok_or(())
         } else {
             self.error(ParseError::UnknownInst);
@@ -143,10 +145,8 @@ impl<'a> Parser<'a> {
                 },
                 Ok(Token::String(s)) => {
                     for c in s.iter() {
-                        self.dw.push((
-                            RawOperand::IntImm(IntImm::Value((*c).into())),
-                            self.span(),
-                        ));
+                        self.dw
+                            .push((RawOperand::IntImm(IntImm::Value((*c).into())), self.span()));
                     }
                 },
                 Ok(_) => match self.parse_operand_with_option(Some(t), OperandKind::IntImm) {
@@ -207,8 +207,7 @@ impl<'a> Parser<'a> {
                 },
                 Ok(t) if t.is_name("dw") => {
                     pending_labels.iter().for_each(|i| {
-                        self.labels
-                            .insert(i, IntImm::Value(self.dw.len().into()));
+                        self.labels.insert(i, IntImm::Value(self.dw.len().into()));
                     });
                     pending_labels.clear();
                     self.parse_add_dw();
@@ -265,21 +264,16 @@ impl<'a> Parser<'a> {
                     (
                         Instruction::construct(
                             i.0,
-                            i.1.iter()
-                                .map(|i| self.finalize(i, heap_size))
-                                .collect(),
+                            i.1.iter().map(|i| self.finalize(i, heap_size)).collect(),
                         ),
                         span,
                     )
                 })
                 .collect(),
-            dw: self.dw
+            dw: self
+                .dw
                 .iter()
-                .map(|i| {
-                    self.finalize(i, heap_size)
-                        .try_as_int_imm()
-                        .unwrap()
-                })
+                .map(|i| self.finalize(i, heap_size).try_as_int_imm().unwrap())
                 .collect(),
         };
 

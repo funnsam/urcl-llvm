@@ -21,8 +21,14 @@ macro_rules! expect_token {
         match $t {
             Ok($pat) => $stmt,
             #[allow(unreachable_patterns)]
-            Ok(_) => { $self.error(ParseError::UnexpectedToken); $else },
-            Err(e) => { $self.error(ParseError::LexError(e)); $else },
+            Ok(_) => {
+                $self.error(ParseError::UnexpectedToken);
+                $else
+            },
+            Err(e) => {
+                $self.error(ParseError::LexError(e));
+                $else
+            },
         }
     }};
 }
@@ -49,9 +55,7 @@ impl<'a> Parser<'a> {
     pub(crate) fn span(&self) -> Span { self.lex.span() }
     pub(crate) fn total_span(&self) -> Span { self.start..self.lex.span().end }
 
-    pub(crate) fn error(&self, err: ParseError) {
-        self.error_at(err, self.span());
-    }
+    pub(crate) fn error(&self, err: ParseError) { self.error_at(err, self.span()); }
 
     pub(crate) fn total_span_error(&self, err: ParseError) {
         self.error_at(err, self.total_span());

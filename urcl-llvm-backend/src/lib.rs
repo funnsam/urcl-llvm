@@ -2,7 +2,7 @@ use inkwell::{
     AddressSpace, IntPredicate, basic_block, builder, context, debug_info, debug_info::AsDIScope,
     intrinsics, module, passes, support, targets, types, values,
 };
-use urcl_ast::{Any, IntImm, Instruction, Program, Register};
+use urcl_ast::{Any, Instruction, IntImm, Program, Register};
 
 pub use inkwell::{OptimizationLevel, targets::FileType};
 
@@ -187,9 +187,7 @@ impl<'a> Codegen<'a> {
         };
 
         let bit_itof = |i: values::IntValue<'a>| {
-            let float_it = self
-                .context
-                .custom_width_int_type(self.float_size as _);
+            let float_it = self.context.custom_width_int_type(self.float_size as _);
             let i = zext_or_trunc(i, float_it);
             self.builder
                 .build_bit_cast(i, self.float, "bitw_itof")
@@ -198,9 +196,7 @@ impl<'a> Codegen<'a> {
         };
 
         let bit_ftoi = |f: values::FloatValue<'a>| {
-            let float_it = self
-                .context
-                .custom_width_int_type(self.float_size as _);
+            let float_it = self.context.custom_width_int_type(self.float_size as _);
             let i = self
                 .builder
                 .build_bit_cast(f, float_it, "bitw_ftoi")

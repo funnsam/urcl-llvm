@@ -124,10 +124,12 @@ fn continue_name<'a>(lex: &mut Lexer<'a>, start: usize) -> &'a str {
         let mut chars = lex.remainder().chars();
 
         match chars.next() {
-            Some('/') => if matches!(chars.next(), Some('/' | '*')) {
-                break;
-            } else {
-                lex.bump(1);
+            Some('/') => {
+                if matches!(chars.next(), Some('/' | '*')) {
+                    break;
+                } else {
+                    lex.bump(1);
+                }
             },
             Some(ch) if ch.is_whitespace() => break,
             Some('%') if start == 0 => break,

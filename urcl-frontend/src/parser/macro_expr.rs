@@ -1,11 +1,11 @@
 use core::str::FromStr;
 
-use dashu::{base::Sign, Integer, Natural};
+use dashu::{Integer, Natural, base::Sign};
 use logos::Span;
 use num_traits::ToPrimitive;
 use urcl_ast::{Any, IntImm, OperandKind};
 
-use super::{error::ParseError, macro_imm::MacroImm, operand::RawOperand, Parser};
+use super::{Parser, error::ParseError, macro_imm::MacroImm, operand::RawOperand};
 
 pub(crate) type RawOp<'a> = (super::operand::RawOperand<'a>, Span);
 
@@ -49,9 +49,7 @@ pub(crate) enum MacroExpr<'a> {
 }
 
 impl<'a> From<MacroExpr<'a>> for RawOperand<'a> {
-    fn from(value: MacroExpr<'a>) -> Self {
-        Self::MacroExpr(Box::new(value))
-    }
+    fn from(value: MacroExpr<'a>) -> Self { Self::MacroExpr(Box::new(value)) }
 }
 
 impl<'a> Parser<'a> {
@@ -67,7 +65,10 @@ impl<'a> Parser<'a> {
                 }
             },
             _ => {
-                self.error_at(ParseError::InvalidOperand(OperandKind::IntImm), op.1.clone());
+                self.error_at(
+                    ParseError::InvalidOperand(OperandKind::IntImm),
+                    op.1.clone(),
+                );
                 Natural::ONE
             },
         }
@@ -91,9 +92,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn set(&self, b: bool) -> Natural {
-        if b { self.bits_umax() } else { Natural::ZERO }
-    }
+    fn set(&self, b: bool) -> Natural { if b { self.bits_umax() } else { Natural::ZERO } }
 
     pub(crate) fn eval_macro_expr(&self, expr: &MacroExpr<'a>, heap_size: u64) -> IntImm {
         use MacroExpr as M;
@@ -114,7 +113,9 @@ impl<'a> Parser<'a> {
             M::Sub(a, b) => eval!(a, b => self.bits_vals() + a - b),
             M::Mlt(a, b) => eval!(a, b => a * b),
             M::Umlt(a, b) => eval!(a, b => (a * b) >> self.bits() as usize),
-            M::SUmlt(a, b) => eval!(a, b => self.unsign(self.sign(a) * self.sign(b) >> self.bits() as usize)),
+            M::SUmlt(a, b) => {
+                eval!(a, b => self.unsign(self.sign(a) * self.sign(b) >> self.bits() as usize))
+            },
             M::Div(a, b) => eval!(a, b => a / b),
             M::Sdiv(a, b) => eval!(a, b => self.unsign(self.sign(a) / self.sign(b))),
             M::Mod(a, b) => eval!(a, b => a % b),
@@ -148,7 +149,9 @@ impl<'a> Parser<'a> {
 
     pub(crate) fn parse_macro_expr(&mut self, name: &str) -> Option<(MacroExpr<'a>, Span)> {
         macro_rules! first {
-            ($first:tt $($_:tt)*) => { $first };
+            ($first:tt $($_:tt)*) => {
+                $first
+            };
         }
 
         macro_rules! expr {
