@@ -8,7 +8,7 @@
 
 union WordAndFloat {
     urcl_t w;
-    float f;
+    urcl_float_t f;
 };
 
 void urcl_in(urcl_t *ret, uint8_t port) {
@@ -56,7 +56,7 @@ void urcl_out(uint8_t port, urcl_t *data) {
         }
         case 28: {
             union WordAndFloat f = { .w = *data };
-            printf("%f", f.f);
+            printf("%Lf", (long double) f.f);
             break;
         }
         case 40: {
