@@ -1,5 +1,7 @@
-use crate::{float, float_size::FloatSize, Codegen};
-use inkwell::{basic_block, debug_info, passes, support, targets, types, values, OptimizationLevel};
+use crate::{Codegen, float, float_size::FloatSize};
+use inkwell::{
+    OptimizationLevel, basic_block, debug_info, passes, support, targets, types, values,
+};
 use urcl_ast::{AnyImm, IntImm};
 
 impl<'a> Codegen<'a> {
@@ -57,33 +59,36 @@ impl<'a> Codegen<'a> {
     ) -> values::IntValue<'a> {
         match i {
             AnyImm::IntImm(i) => self.int_imm_to_addr_or_word(i, native_addr, inst_bb),
-            AnyImm::FloatImm(f) => {
-                match self.float_size {
-                    FloatSize::_16 => {
-                        let bits = float::u16::from_dec(f.0.clone());
-                        println!("{bits:04x}");
-                        self.word.const_int(bits as u64, false)
-                    },
-                    FloatSize::_32 => {
-                        let bits = f.0.to_f32().value().to_bits();
-                        self.word.const_int(bits as u64, false)
-                    },
-                    FloatSize::_64 => {
-                        let bits = f.0.to_f64().value().to_bits();
-                        self.word.const_int(bits, false)
-                    },
-                    FloatSize::_128 => {
-                        let bits = float::u128::from_dec(f.0.clone());
-                        println!("{bits:032x}");
-                        self.word.const_int_arbitrary_precision(&[bits as u64, (bits >> 64) as u64])
-                    },
-                }
+            AnyImm::FloatImm(f) => match self.float_size {
+                FloatSize::_16 => {
+                    let bits = float::u16::from_dec(f.0.clone());
+                    println!("{bits:04x}");
+                    self.word.const_int(bits as u64, false)
+                },
+                FloatSize::_32 => {
+                    let bits = f.0.to_f32().value().to_bits();
+                    self.word.const_int(bits as u64, false)
+                },
+                FloatSize::_64 => {
+                    let bits = f.0.to_f64().value().to_bits();
+                    self.word.const_int(bits, false)
+                },
+                FloatSize::_128 => {
+                    let bits = float::u128::from_dec(f.0.clone());
+                    println!("{bits:032x}");
+                    self.word
+                        .const_int_arbitrary_precision(&[bits as u64, (bits >> 64) as u64])
+                },
             },
             AnyImm::Undefined => self.word.get_undef(),
         }
     }
 
-    pub fn zext_or_trunc(&self, i: values::IntValue<'a>, t: types::IntType<'a>) -> values::IntValue<'a> {
+    pub fn zext_or_trunc(
+        &self,
+        i: values::IntValue<'a>,
+        t: types::IntType<'a>,
+    ) -> values::IntValue<'a> {
         use core::cmp::Ordering as O;
 
         match i.get_type().get_bit_width().cmp(&t.get_bit_width()) {

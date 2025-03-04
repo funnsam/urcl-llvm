@@ -78,7 +78,9 @@ impl<'a> Parser<'a> {
 
                 inner
             },
-            Token::Label(l) if ok.can_int() | ok.can_imm() => Ok((RawOperand::Label(l), self.span())),
+            Token::Label(l) if ok.can_int() | ok.can_imm() => {
+                Ok((RawOperand::Label(l), self.span()))
+            },
             Token::Relative(r) if ok.can_int() | ok.can_imm() => Ok((
                 RawOperand::IntImm(IntImm::InstLoc(
                     (Integer::from(self.instructions.len()) + r)

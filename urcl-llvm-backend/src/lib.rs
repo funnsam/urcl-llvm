@@ -343,7 +343,7 @@ impl<'a> Codegen<'a> {
                 },
             };
 
-            let get_any_int  = |v: &_| match v {
+            let get_any_int = |v: &_| match v {
                 AnyInt::Register(r) => get_reg(r),
                 AnyInt::IntImm(i) => self.int_imm_to_addr_or_word(i, native_addr, &inst_bb),
             };
@@ -928,7 +928,11 @@ impl<'a> Codegen<'a> {
                     let v = get_any_ptr(v);
 
                     self.builder
-                        .build_call(port_out, &[self.zext_or_trunc(p, i8_t).into(), v.into()], "out")
+                        .build_call(
+                            port_out,
+                            &[self.zext_or_trunc(p, i8_t).into(), v.into()],
+                            "out",
+                        )
                         .unwrap();
                     self.builder
                         .build_unconditional_branch(inst_bb[pc + 1])

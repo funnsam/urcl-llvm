@@ -1,7 +1,7 @@
 macro_rules! impl_to_bits {
     ($ty:tt $sty:tt $bits:tt $max_exp:literal $min_exp:literal $mantissa:literal $exp:literal $inf:literal) => {
         pub mod $ty {
-            use dashu::{base::Sign, Decimal};
+            use dashu::{Decimal, base::Sign};
 
             pub fn from_dec(dec: Decimal) -> $ty {
                 let r = dec.with_base_and_precision::<2>($mantissa).value();
@@ -17,7 +17,10 @@ macro_rules! impl_to_bits {
                 } else if repr.exponent() < $min_exp - $mantissa {
                     sign_ty(0, repr.sign())
                 } else {
-                    encode(repr.significand().try_into().unwrap(), repr.exponent() as i16)
+                    encode(
+                        repr.significand().try_into().unwrap(),
+                        repr.exponent() as i16,
+                    )
                 }
             }
 
@@ -38,7 +41,7 @@ macro_rules! impl_to_bits {
                 let zeros = mantissa.leading_zeros();
                 let top_bit = (u64::BITS - zeros) as i16 + exponent;
 
-                if top_bit > 16_384 { // MAX_EXP
+                if top_bit > $max_exp {
                     return sign_ty($inf, sign);
                 } else if top_bit < -1022 - 52 {
                     return sign_ty(0, sign);
@@ -68,10 +71,13 @@ macro_rules! impl_to_bits {
                     }
 
                     // then calculate the exponent (bias = MAX_EXP - 1)
-                    let exponent = (exponent + ($max_exp - 1) + $bits as i16) as $ty - zeros as $ty - 1;
+                    let exponent =
+                        (exponent + ($max_exp - 1) + $bits as i16) as $ty - zeros as $ty - 1;
 
                     // then compose the bit representation of this float
-                    bits = ((sign as $ty) << ($bits - 1)) | (exponent << ($mantissa - 1)) | (mantissa >> ($exp + 1));
+                    bits = ((sign as $ty) << ($bits - 1))
+                        | (exponent << ($mantissa - 1))
+                        | (mantissa >> ($exp + 1));
                 };
 
                 bits
