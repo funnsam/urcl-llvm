@@ -1,5 +1,5 @@
 use crate::{float, float_size::FloatSize, Codegen};
-use inkwell::{basic_block, debug_info, passes, support, targets, values, OptimizationLevel};
+use inkwell::{basic_block, debug_info, passes, support, targets, types, values, OptimizationLevel};
 use urcl_ast::{AnyImm, IntImm};
 
 impl<'a> Codegen<'a> {
@@ -81,6 +81,36 @@ impl<'a> Codegen<'a> {
             },
             AnyImm::Undefined => self.word.get_undef(),
         }
+    }
+
+    pub fn zext_or_trunc(&self, i: values::IntValue<'a>, t: types::IntType<'a>) -> values::IntValue<'a> {
+        use core::cmp::Ordering as O;
+
+        match i.get_type().get_bit_width().cmp(&t.get_bit_width()) {
+            O::Greater => self.builder.build_int_truncate(i, t, "conv_trunc").unwrap(),
+            O::Less => self.builder.build_int_z_extend(i, t, "conv_zext").unwrap(),
+            O::Equal => i,
+        }
+    }
+
+    pub fn bit_itof(&self, i: values::IntValue<'a>) -> values::FloatValue<'a> {
+        let float_it = self.context.custom_width_int_type(self.float_size as _);
+        let i = self.zext_or_trunc(i, float_it);
+        self.builder
+            .build_bit_cast(i, self.float, "bitw_itof")
+            .unwrap()
+            .into_float_value()
+    }
+
+    pub fn bit_ftoi(&self, f: values::FloatValue<'a>) -> values::IntValue<'a> {
+        let float_it = self.context.custom_width_int_type(self.float_size as _);
+        let i = self
+            .builder
+            .build_bit_cast(f, float_it, "bitw_ftoi")
+            .unwrap()
+            .into_int_value();
+
+        self.zext_or_trunc(i, self.word)
     }
 
     pub fn optimize(&self, target: &targets::TargetMachine, opt: OptimizationLevel) {

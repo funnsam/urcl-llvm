@@ -136,35 +136,6 @@ impl<'a> Codegen<'a> {
 
         let native_addr = self.options.native_addr && self.program.bits >= mach_t.get_bit_width();
 
-        let zext_or_trunc = |i: values::IntValue<'a>, t: types::IntType<'a>| {
-            use core::cmp::Ordering::{Equal, Greater, Less};
-            match i.get_type().get_bit_width().cmp(&t.get_bit_width()) {
-                Greater => self.builder.build_int_truncate(i, t, "conv_trunc").unwrap(),
-                Less => self.builder.build_int_z_extend(i, t, "conv_zext").unwrap(),
-                Equal => i,
-            }
-        };
-
-        let bit_itof = |i: values::IntValue<'a>| {
-            let float_it = self.context.custom_width_int_type(self.float_size as _);
-            let i = zext_or_trunc(i, float_it);
-            self.builder
-                .build_bit_cast(i, self.float, "bitw_itof")
-                .unwrap()
-                .into_float_value()
-        };
-
-        let bit_ftoi = |f: values::FloatValue<'a>| {
-            let float_it = self.context.custom_width_int_type(self.float_size as _);
-            let i = self
-                .builder
-                .build_bit_cast(f, float_it, "bitw_ftoi")
-                .unwrap()
-                .into_int_value();
-
-            zext_or_trunc(i, self.word)
-        };
-
         let main = self
             .module
             .add_function("urcl_main", mach_t.fn_type(&[], false), None);
@@ -381,18 +352,21 @@ impl<'a> Codegen<'a> {
                 AnyFloat::Register(r) => get_reg(r),
                 AnyFloat::FloatImm(f) => {
                     // SAFETY: f.to_string() should return a valid float
+                    // TODO: make float without using llvm utils
                     let f = unsafe { self.float.const_float_from_string(&f.to_string()) };
-                    bit_ftoi(f)
+                    self.bit_ftoi(f)
                 },
             };
 
+            // TODO: use get_any_* instead of this
             let get_any = |v: &_| match v {
                 Any::Register(r) => get_reg(r),
                 Any::IntImm(i) => self.int_imm_to_addr_or_word(i, native_addr, &inst_bb),
                 Any::FloatImm(f) => {
                     // SAFETY: f.to_string() should return a valid float
+                    // TODO: make float without using llvm utils
                     let f = unsafe { self.float.const_float_from_string(&f.to_string()) };
-                    bit_ftoi(f)
+                    self.bit_ftoi(f)
                 },
                 Any::Undefined => self.word.get_undef(),
             };
@@ -531,28 +505,28 @@ impl<'a> Codegen<'a> {
 
             macro_rules! gen {
                 (2op $d:tt $a:tt $b:tt $gen:expr) => {{
-                    let a = get_any_int($a);
-                    let b = get_any_int($b);
+                    let $a = get_any_int($a);
+                    let $b = get_any_int($b);
                     #[allow(clippy::blocks_in_conditions)]
-                    if set_reg($d, $gen(a, b)) {
+                    if set_reg($d, $gen) {
                         self.builder
                             .build_unconditional_branch(inst_bb[pc + 1])
                             .unwrap();
                     }
                 }};
                 (1aop $d:tt $a:tt $gen:expr) => {{
-                    let a = get_any($a);
+                    let $a = get_any($a);
                     #[allow(clippy::blocks_in_conditions)]
-                    if set_reg($d, $gen(a)) {
+                    if set_reg($d, $gen) {
                         self.builder
                             .build_unconditional_branch(inst_bb[pc + 1])
                             .unwrap();
                     }
                 }};
                 (1op $d:tt $a:tt $gen:expr) => {{
-                    let a = get_any_int($a);
+                    let $a = get_any_int($a);
                     #[allow(clippy::blocks_in_conditions)]
-                    if set_reg($d, $gen(a)) {
+                    if set_reg($d, $gen) {
                         self.builder
                             .build_unconditional_branch(inst_bb[pc + 1])
                             .unwrap();
@@ -560,30 +534,28 @@ impl<'a> Codegen<'a> {
                 }};
                 (none $d:tt $gen:expr) => {{
                     #[allow(clippy::blocks_in_conditions)]
-                    if set_reg($d, $gen()) {
+                    if set_reg($d, $gen) {
                         self.builder
                             .build_unconditional_branch(inst_bb[pc + 1])
                             .unwrap();
                     }
                 }};
                 (2bc $d:tt $a:tt $b:tt $cond:expr) => {{
-                    let a = get_any_int($a);
-                    let b = get_any_int($b);
-                    let c = $cond(a, b);
-                    cond_br(c, $d);
+                    let $a = get_any_int($a);
+                    let $b = get_any_int($b);
+                    cond_br($cond, $d);
                 }};
                 (1bc $d:tt $a:tt $cond:expr) => {{
-                    let a = get_any_int($a);
-                    let c = $cond(a);
+                    let $a = get_any_int($a);
+                    let c = $cond;
                     cond_br(c, $d);
                 }};
                 (2set $d:tt $a:tt $b:tt $gen:expr) => {{
-                    let a = get_any_int($a);
-                    let b = get_any_int($b);
-                    let c = $gen(a, b);
+                    let $a = get_any_int($a);
+                    let $b = get_any_int($b);
                     let c = self
                         .builder
-                        .build_int_s_extend(c, self.word, "set_sext")
+                        .build_int_s_extend($gen, self.word, "set_sext")
                         .unwrap();
                     #[allow(clippy::blocks_in_conditions)]
                     if set_reg($d, c) {
@@ -593,12 +565,11 @@ impl<'a> Codegen<'a> {
                     }
                 }};
                 (2fop $d:tt $a:tt $b:tt $gen:expr) => {{
-                    let a = get_any_float($a);
-                    let a = bit_itof(a);
-                    let b = get_any_float($b);
-                    let b = bit_itof(b);
-                    let c = $gen(a, b);
-                    let c = bit_ftoi(c);
+                    let $a = get_any_float($a);
+                    let $a = self.bit_itof($a);
+                    let $b = get_any_float($b);
+                    let $b = self.bit_itof($b);
+                    let c = self.bit_ftoi($gen);
                     #[allow(clippy::blocks_in_conditions)]
                     if set_reg($d, c) {
                         self.builder
@@ -607,10 +578,9 @@ impl<'a> Codegen<'a> {
                     }
                 }};
                 (1fop $d:tt $a:tt $gen:expr) => {{
-                    let a = get_any_float($a);
-                    let a = bit_itof(a);
-                    let c = $gen(a);
-                    let c = bit_ftoi(c);
+                    let $a = get_any_float($a);
+                    let $a = self.bit_itof($a);
+                    let c = self.bit_ftoi($gen);
                     #[allow(clippy::blocks_in_conditions)]
                     if set_reg($d, c) {
                         self.builder
@@ -619,9 +589,10 @@ impl<'a> Codegen<'a> {
                     }
                 }};
                 (ftoi $d:tt $a:tt $gen:expr) => {{
-                    let a = get_any_float($a);
+                    let $a = get_any_float($a);
+                    let $a = self.bit_itof($a);
                     #[allow(clippy::blocks_in_conditions)]
-                    if set_reg($d, $gen(a)) {
+                    if set_reg($d, $gen) {
                         self.builder
                             .build_unconditional_branch(inst_bb[pc + 1])
                             .unwrap();
@@ -630,13 +601,13 @@ impl<'a> Codegen<'a> {
             }
 
             match i {
-                Instruction::Add(d, a, b) => gen!(2op d a b |a, b| {
+                Instruction::Add(d, a, b) => gen!(2op d a b {
                     self.builder.build_int_add(a, b, "add").unwrap()
                 }),
-                Instruction::Rsh(d, a) => gen!(1op d a |a| {
+                Instruction::Rsh(d, a) => gen!(1op d a {
                         self.builder.build_right_shift(a, word_1, false, "rsh_urcl").unwrap()
                 }),
-                Instruction::Lod(d, a) => gen!(1op d a read_ram),
+                Instruction::Lod(d, a) => gen!(1op d a read_ram(a)),
                 Instruction::Str(a, v) => {
                     let a = get_any_int(a);
                     let v = get_any(v);
@@ -645,85 +616,85 @@ impl<'a> Codegen<'a> {
                         .build_unconditional_branch(inst_bb[pc + 1])
                         .unwrap();
                 },
-                Instruction::Bge(d, a, b) => gen!(2bc d a b |a, b| {
+                Instruction::Bge(d, a, b) => gen!(2bc d a b {
                     self.builder.build_int_compare(IntPredicate::UGE, a, b, "urcl_bge_cmp").unwrap()
                 }),
-                Instruction::Nor(d, a, b) => gen!(2op d a b |a, b| {
+                Instruction::Nor(d, a, b) => gen!(2op d a b {
                     let c = self.builder.build_or(a, b, "nor_1").unwrap();
                     self.builder.build_not(c, "nor_2").unwrap()
                 }),
-                Instruction::Sub(d, a, b) => gen!(2op d a b |a, b| {
+                Instruction::Sub(d, a, b) => gen!(2op d a b {
                     self.builder.build_int_sub(a, b, "sub").unwrap()
                 }),
-                Instruction::Imm(d, v) | Instruction::Mov(d, v) => gen!(1aop d v |v| v),
+                Instruction::Imm(d, v) | Instruction::Mov(d, v) => gen!(1aop d v v),
                 Instruction::Jmp(i) => uncond_br(i),
                 Instruction::Nop() => {
                     self.builder
                         .build_unconditional_branch(inst_bb[pc + 1])
                         .unwrap();
                 },
-                Instruction::Lsh(d, a) => gen!(1op d a |a| {
+                Instruction::Lsh(d, a) => gen!(1op d a {
                     self.builder.build_left_shift(a, word_1, "lsh").unwrap()
                 }),
-                Instruction::Inc(d, a) => gen!(1op d a |a| {
+                Instruction::Inc(d, a) => gen!(1op d a {
                     self.builder.build_int_add(a, word_1, "inc").unwrap()
                 }),
-                Instruction::Dec(d, a) => gen!(1op d a |a| {
+                Instruction::Dec(d, a) => gen!(1op d a {
                     self.builder.build_int_sub(a, word_1, "dec").unwrap()
                 }),
-                Instruction::Neg(d, a) => gen!(1op d a |a| {
+                Instruction::Neg(d, a) => gen!(1op d a {
                     self.builder.build_int_neg(a, "neg").unwrap()
                 }),
-                Instruction::And(d, a, b) => gen!(2op d a b |a, b| {
+                Instruction::And(d, a, b) => gen!(2op d a b {
                     self.builder.build_and(a, b, "and").unwrap()
                 }),
-                Instruction::Or(d, a, b) => gen!(2op d a b |a, b| {
+                Instruction::Or(d, a, b) => gen!(2op d a b {
                     self.builder.build_or(a, b, "or").unwrap()
                 }),
-                Instruction::Not(d, a) => gen!(1op d a |a| {
+                Instruction::Not(d, a) => gen!(1op d a {
                     self.builder.build_not(a, "not").unwrap()
                 }),
-                Instruction::Xnor(d, a, b) => gen!(2op d a b |a, b| {
+                Instruction::Xnor(d, a, b) => gen!(2op d a b {
                     let c = self.builder.build_xor(a, b, "xnor_1").unwrap();
                     self.builder.build_not(c, "xnor_2").unwrap()
                 }),
-                Instruction::Xor(d, a, b) => gen!(2op d a b |a, b| {
+                Instruction::Xor(d, a, b) => gen!(2op d a b {
                     self.builder.build_xor(a, b, "xor").unwrap()
                 }),
-                Instruction::Nand(d, a, b) => gen!(2op d a b |a, b| {
+                Instruction::Nand(d, a, b) => gen!(2op d a b {
                     let c = self.builder.build_and(a, b, "nand_1").unwrap();
                     self.builder.build_not(c, "nand_2").unwrap()
                 }),
-                Instruction::Brl(d, a, b) => gen!(2bc d a b |a, b| {
+                Instruction::Brl(d, a, b) => gen!(2bc d a b {
                     self.builder.build_int_compare(IntPredicate::ULT, a, b, "brl_cmp").unwrap()
                 }),
-                Instruction::Brg(d, a, b) => gen!(2bc d a b |a, b| {
+                Instruction::Brg(d, a, b) => gen!(2bc d a b {
                     self.builder.build_int_compare(IntPredicate::UGT, a, b, "brg_cmp").unwrap()
                 }),
-                Instruction::Bre(d, a, b) => gen!(2bc d a b |a, b| {
+                Instruction::Bre(d, a, b) => gen!(2bc d a b {
                     self.builder.build_int_compare(IntPredicate::EQ, a, b, "bre_cmp").unwrap()
                 }),
-                Instruction::Bne(d, a, b) => gen!(2bc d a b |a, b| {
+                Instruction::Bne(d, a, b) => gen!(2bc d a b {
                     self.builder.build_int_compare(IntPredicate::NE, a, b, "bne_cmp").unwrap()
                 }),
-                Instruction::Bod(d, a) => gen!(1bc d a |a| {
+                Instruction::Bod(d, a) => gen!(1bc d a {
                     let b = self.builder.build_and(a, word_1, "bod_b0").unwrap();
                     self.builder.build_int_compare(IntPredicate::NE, b, word_0, "bod_cmp").unwrap()
                 }),
-                Instruction::Bev(d, a) => gen!(1bc d a |a| {
+                Instruction::Bev(d, a) => gen!(1bc d a {
                     let b = self.builder.build_and(a, word_1, "bev_b0").unwrap();
                     self.builder.build_int_compare(IntPredicate::EQ, b, word_0, "bev_cmp").unwrap()
                 }),
-                Instruction::Ble(d, a, b) => gen!(2bc d a b |a, b| {
+                Instruction::Ble(d, a, b) => gen!(2bc d a b {
                     self.builder.build_int_compare(IntPredicate::ULE, a, b, "ble_cmp").unwrap()
                 }),
-                Instruction::Brz(d, a) => gen!(1bc d a |a| {
+                Instruction::Brz(d, a) => gen!(1bc d a {
                     self.builder.build_int_compare(IntPredicate::EQ, a, word_0, "brz_cmp").unwrap()
                 }),
-                Instruction::Bnz(d, a) => gen!(1bc d a |a| {
+                Instruction::Bnz(d, a) => gen!(1bc d a {
                     self.builder.build_int_compare(IntPredicate::NE, a, word_0, "bnz_cmp").unwrap()
                 }),
-                Instruction::Brn(d, a) => gen!(1bc d a |a| {
+                Instruction::Brn(d, a) => gen!(1bc d a {
                     let s = self.builder
                         .build_right_shift(
                             a,
@@ -736,7 +707,7 @@ impl<'a> Codegen<'a> {
                         .build_int_compare(IntPredicate::NE, s, word_0, "brn_cmp")
                         .unwrap()
                 }),
-                Instruction::Brp(d, a) => gen!(1bc d a |a| {
+                Instruction::Brp(d, a) => gen!(1bc d a {
                     let s = self.builder
                         .build_right_shift(
                             a,
@@ -755,7 +726,7 @@ impl<'a> Codegen<'a> {
                         .build_unconditional_branch(inst_bb[pc + 1])
                         .unwrap();
                 },
-                Instruction::Pop(d) => gen!(none d pop),
+                Instruction::Pop(d) => gen!(none d pop()),
                 Instruction::Cal(a) => {
                     push(if native_addr {
                         unsafe { inst_bb[pc + 1].get_address() }
@@ -777,7 +748,7 @@ impl<'a> Codegen<'a> {
                         .unwrap();
                 },
                 Instruction::Brc(d, a, b) => {
-                    gen!(2bc d a b |a: values::IntValue<'a>, b: values::IntValue<'a>| {
+                    gen!(2bc d a b {
                         let add_ov = intrinsics::Intrinsic::find("llvm.uadd.with.overflow")
                             .unwrap()
                             .get_declaration(&self.module, &[self.word.into()])
@@ -796,7 +767,7 @@ impl<'a> Codegen<'a> {
                     });
                 },
                 Instruction::Bnc(d, a, b) => {
-                    gen!(2bc d a b |a: values::IntValue<'a>, b: values::IntValue<'a>| {
+                    gen!(2bc d a b {
                         let add_ov = intrinsics::Intrinsic::find("llvm.uadd.with.overflow")
                             .unwrap()
                             .get_declaration(&self.module, &[self.word.into()])
@@ -817,47 +788,47 @@ impl<'a> Codegen<'a> {
                             .unwrap()
                     });
                 },
-                Instruction::Mlt(d, a, b) => gen!(2op d a b |a, b| {
+                Instruction::Mlt(d, a, b) => gen!(2op d a b {
                     self.builder.build_int_mul(a, b, "mul").unwrap()
                 }),
-                Instruction::Div(d, a, b) => gen!(2op d a b |a, b| {
+                Instruction::Div(d, a, b) => gen!(2op d a b {
                     self.builder.build_int_unsigned_div(a, b, "div").unwrap()
                 }),
-                Instruction::Mod(d, a, b) => gen!(2op d a b |a, b| {
+                Instruction::Mod(d, a, b) => gen!(2op d a b {
                     self.builder.build_int_unsigned_rem(a, b, "mod").unwrap()
                 }),
-                Instruction::Bsr(d, a, b) => gen!(2op d a b |a, b| {
+                Instruction::Bsr(d, a, b) => gen!(2op d a b {
                     self.builder.build_right_shift(a, b, false, "bsr").unwrap()
                 }),
-                Instruction::Bsl(d, a, b) => gen!(2op d a b |a, b| {
+                Instruction::Bsl(d, a, b) => gen!(2op d a b {
                     self.builder.build_left_shift(a, b, "bsl").unwrap()
                 }),
-                Instruction::Srs(d, a) => gen!(1op d a |a| {
+                Instruction::Srs(d, a) => gen!(1op d a {
                     self.builder.build_right_shift(a, word_1, true, "srs").unwrap()
                 }),
-                Instruction::Bss(d, a, b) => gen!(2op d a b |a, b| {
+                Instruction::Bss(d, a, b) => gen!(2op d a b {
                     self.builder.build_right_shift(a, b, true, "bss").unwrap()
                 }),
-                Instruction::SetE(d, a, b) => gen!(2set d a b |a, b| {
+                Instruction::SetE(d, a, b) => gen!(2set d a b {
                     self.builder.build_int_compare(IntPredicate::EQ, a, b, "sete_cmp").unwrap()
                 }),
-                Instruction::SetNe(d, a, b) => gen!(2set d a b |a, b| {
+                Instruction::SetNe(d, a, b) => gen!(2set d a b {
                     self.builder.build_int_compare(IntPredicate::NE, a, b, "setne_cmp").unwrap()
                 }),
-                Instruction::SetG(d, a, b) => gen!(2set d a b |a, b| {
+                Instruction::SetG(d, a, b) => gen!(2set d a b {
                     self.builder.build_int_compare(IntPredicate::UGT, a, b, "setg_cmp").unwrap()
                 }),
-                Instruction::SetL(d, a, b) => gen!(2set d a b |a, b| {
+                Instruction::SetL(d, a, b) => gen!(2set d a b {
                     self.builder.build_int_compare(IntPredicate::ULT, a, b, "setl_cmp").unwrap()
                 }),
-                Instruction::SetGe(d, a, b) => gen!(2set d a b |a, b| {
+                Instruction::SetGe(d, a, b) => gen!(2set d a b {
                     self.builder.build_int_compare(IntPredicate::UGE, a, b, "setge_cmp").unwrap()
                 }),
-                Instruction::SetLe(d, a, b) => gen!(2set d a b |a, b| {
+                Instruction::SetLe(d, a, b) => gen!(2set d a b {
                     self.builder.build_int_compare(IntPredicate::ULE, a, b, "setle_cmp").unwrap()
                 }),
                 Instruction::SetC(d, a, b) => {
-                    gen!(2set d a b |a: values::IntValue<'a>, b: values::IntValue<'a>| {
+                    gen!(2set d a b {
                         let add_ov = intrinsics::Intrinsic::find("llvm.uadd.with.overflow")
                             .unwrap()
                             .get_declaration(&self.module, &[self.word.into()])
@@ -876,7 +847,7 @@ impl<'a> Codegen<'a> {
                     });
                 },
                 Instruction::SetNc(d, a, b) => {
-                    gen!(2set d a b |a: values::IntValue<'a>, b: values::IntValue<'a>| {
+                    gen!(2set d a b {
                         let add_ov = intrinsics::Intrinsic::find("llvm.uadd.with.overflow")
                             .unwrap()
                             .get_declaration(&self.module, &[self.word.into()])
@@ -897,7 +868,7 @@ impl<'a> Codegen<'a> {
                             .unwrap()
                     });
                 },
-                Instruction::LLod(d, a, b) => gen!(2op d a b |a, b| {
+                Instruction::LLod(d, a, b) => gen!(2op d a b {
                     let addr = self.builder.build_int_add(a, b, "llod_addr").unwrap();
                     read_ram(addr)
                 }),
@@ -911,34 +882,34 @@ impl<'a> Codegen<'a> {
                         .build_unconditional_branch(inst_bb[pc + 1])
                         .unwrap();
                 },
-                Instruction::SDiv(d, a, b) => gen!(2op d a b |a, b| {
+                Instruction::SDiv(d, a, b) => gen!(2op d a b {
                     self.builder.build_int_signed_div(a, b, "sdiv").unwrap()
                 }),
-                Instruction::SBrl(d, a, b) => gen!(2bc d a b |a, b| {
+                Instruction::SBrl(d, a, b) => gen!(2bc d a b {
                     self.builder.build_int_compare(IntPredicate::SLT, a, b, "sbrl_cmp").unwrap()
                 }),
-                Instruction::SBrg(d, a, b) => gen!(2bc d a b |a, b| {
+                Instruction::SBrg(d, a, b) => gen!(2bc d a b {
                     self.builder.build_int_compare(IntPredicate::SGT, a, b, "sbrg_cmp").unwrap()
                 }),
-                Instruction::SBle(d, a, b) => gen!(2bc d a b |a, b| {
+                Instruction::SBle(d, a, b) => gen!(2bc d a b {
                     self.builder.build_int_compare(IntPredicate::SLE, a, b, "sble_cmp").unwrap()
                 }),
-                Instruction::SBge(d, a, b) => gen!(2bc d a b |a, b| {
+                Instruction::SBge(d, a, b) => gen!(2bc d a b {
                     self.builder.build_int_compare(IntPredicate::SGE, a, b, "sbge_cmp").unwrap()
                 }),
-                Instruction::SSetG(d, a, b) => gen!(2set d a b |a, b| {
+                Instruction::SSetG(d, a, b) => gen!(2set d a b {
                     self.builder.build_int_compare(IntPredicate::SGT, a, b, "ssetg_cmp").unwrap()
                 }),
-                Instruction::SSetL(d, a, b) => gen!(2set d a b |a, b| {
+                Instruction::SSetL(d, a, b) => gen!(2set d a b {
                     self.builder.build_int_compare(IntPredicate::SLT, a, b, "ssetl_cmp").unwrap()
                 }),
-                Instruction::SSetGe(d, a, b) => gen!(2set d a b |a, b| {
+                Instruction::SSetGe(d, a, b) => gen!(2set d a b {
                     self.builder.build_int_compare(IntPredicate::SGE, a, b, "ssetge_cmp").unwrap()
                 }),
-                Instruction::SSetLe(d, a, b) => gen!(2set d a b |a, b| {
+                Instruction::SSetLe(d, a, b) => gen!(2set d a b {
                     self.builder.build_int_compare(IntPredicate::SLE, a, b, "ssetle_cmp").unwrap()
                 }),
-                Instruction::Abs(d, a) => gen!(1op d a |a: values::IntValue<'a>| {
+                Instruction::Abs(d, a) => gen!(1op d a {
                     let abs = intrinsics::Intrinsic::find("llvm.abs")
                         .unwrap()
                         .get_declaration(&self.module, &[self.word.into()])
@@ -957,7 +928,7 @@ impl<'a> Codegen<'a> {
                     let v = get_any_ptr(v);
 
                     self.builder
-                        .build_call(port_out, &[zext_or_trunc(p, i8_t).into(), v.into()], "out")
+                        .build_call(port_out, &[self.zext_or_trunc(p, i8_t).into(), v.into()], "out")
                         .unwrap();
                     self.builder
                         .build_unconditional_branch(inst_bb[pc + 1])
@@ -968,13 +939,13 @@ impl<'a> Codegen<'a> {
                     let p = get_any(p);
 
                     self.builder
-                        .build_call(port_in, &[r.into(), zext_or_trunc(p, i8_t).into()], "")
+                        .build_call(port_in, &[r.into(), self.zext_or_trunc(p, i8_t).into()], "")
                         .unwrap();
                     self.builder
                         .build_unconditional_branch(inst_bb[pc + 1])
                         .unwrap();
                 },
-                Instruction::Umlt(d, a, b) => gen!(2op d a b |a, b| {
+                Instruction::Umlt(d, a, b) => gen!(2op d a b {
                     let ext_t = self.context.custom_width_int_type(self.program.bits * 2);
                     let a = self.builder.build_int_z_extend(a, ext_t, "umlt_a_zext").unwrap();
                     let b = self.builder.build_int_z_extend(b, ext_t, "umlt_b_zext").unwrap();
@@ -982,7 +953,7 @@ impl<'a> Codegen<'a> {
                     let s = self.builder.build_right_shift(r, ext_t.const_int(self.program.bits.into(), false), false, "uml_rsh").unwrap();
                     self.builder.build_int_truncate(s, self.word, "umlt_trunc").unwrap()
                 }),
-                Instruction::SUmlt(d, a, b) => gen!(2op d a b |a, b| {
+                Instruction::SUmlt(d, a, b) => gen!(2op d a b {
                     let ext_t = self.context.custom_width_int_type(self.program.bits * 2);
                     let a = self.builder.build_int_s_extend(a, ext_t, "sumlt_a_sext").unwrap();
                     let b = self.builder.build_int_s_extend(b, ext_t, "sumlt_b_sext").unwrap();
@@ -990,21 +961,19 @@ impl<'a> Codegen<'a> {
                     let s = self.builder.build_right_shift(r, ext_t.const_int(self.program.bits.into(), false), false, "suml_rsh").unwrap();
                     self.builder.build_int_truncate(s, self.word, "sumlt_trunc").unwrap()
                 }),
-                Instruction::ItoF(d, a) => gen!(1op d a |a| {
+                Instruction::ItoF(d, a) => gen!(1op d a {
                     let f = self.builder.build_signed_int_to_float(a, self.float, "itof").unwrap();
-                    bit_ftoi(f)
+                    self.bit_ftoi(f)
                 }),
-                Instruction::FtoI(d, a) => gen!(ftoi d a |a| {
-                    let f = bit_itof(a);
-                    self.builder.build_float_to_signed_int(f, self.word, "ftoi").unwrap()
+                Instruction::FtoI(d, a) => gen!(ftoi d a {
+                    self.builder.build_float_to_signed_int(a, self.word, "ftoi").unwrap()
                 }),
-                Instruction::FRtoI(d, a) => gen!(ftoi d a |a| {
-                    let f = bit_itof(a);
+                Instruction::FRtoI(d, a) => gen!(ftoi d a {
                     let round = intrinsics::Intrinsic::find("llvm.round")
                         .unwrap()
                         .get_declaration(&self.module, &[self.float.into()])
                         .unwrap();
-                    let r = self.builder.build_call(round, &[f.into()], "frtoi_round")
+                    let r = self.builder.build_call(round, &[a.into()], "frtoi_round")
                         .unwrap()
                         .try_as_basic_value()
                         .unwrap_left()
@@ -1012,19 +981,19 @@ impl<'a> Codegen<'a> {
 
                     self.builder.build_float_to_signed_int(r, self.word, "frtoi").unwrap()
                 }),
-                Instruction::FAdd(d, a, b) => gen!(2fop d a b |a, b| {
+                Instruction::FAdd(d, a, b) => gen!(2fop d a b {
                     self.builder.build_float_add(a, b, "fadd").unwrap()
                 }),
-                Instruction::FSub(d, a, b) => gen!(2fop d a b |a, b| {
+                Instruction::FSub(d, a, b) => gen!(2fop d a b {
                     self.builder.build_float_sub(a, b, "fsub").unwrap()
                 }),
-                Instruction::FMlt(d, a, b) => gen!(2fop d a b |a, b| {
+                Instruction::FMlt(d, a, b) => gen!(2fop d a b {
                     self.builder.build_float_mul(a, b, "fmlt").unwrap()
                 }),
-                Instruction::FDiv(d, a, b) => gen!(2fop d a b |a, b| {
+                Instruction::FDiv(d, a, b) => gen!(2fop d a b {
                     self.builder.build_float_div(a, b, "fdiv").unwrap()
                 }),
-                Instruction::FSqrt(d, a) => gen!(1fop d a |a: values::FloatValue<'a>| {
+                Instruction::FSqrt(d, a) => gen!(1fop d a {
                     let round = intrinsics::Intrinsic::find("llvm.sqrt")
                         .unwrap()
                         .get_declaration(&self.module, &[self.float.into()])
@@ -1035,7 +1004,7 @@ impl<'a> Codegen<'a> {
                         .unwrap_left()
                         .into_float_value()
                 }),
-                Instruction::FAbs(d, a) => gen!(1fop d a |a: values::FloatValue<'a>| {
+                Instruction::FAbs(d, a) => gen!(1fop d a {
                     let round = intrinsics::Intrinsic::find("llvm.fabs")
                         .unwrap()
                         .get_declaration(&self.module, &[self.float.into()])
