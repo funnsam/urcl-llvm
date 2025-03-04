@@ -39,7 +39,7 @@ macro_rules! impl_to_bits {
                 let mut mantissa = mantissa.unsigned_abs();
 
                 let zeros = mantissa.leading_zeros();
-                let top_bit = (u64::BITS - zeros) as i16 + exponent;
+                let top_bit = ($ty::BITS - zeros) as i16 + exponent;
 
                 if top_bit > $max_exp {
                     return sign_ty($inf, sign);
