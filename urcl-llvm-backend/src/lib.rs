@@ -1,13 +1,13 @@
-#![feature(f16, f128)]
-
+mod float;
 mod float_size;
+mod util;
 
 use float_size::FloatSize;
 use inkwell::{
     AddressSpace, IntPredicate, basic_block, builder, context, debug_info, debug_info::AsDIScope,
-    intrinsics, module, passes, support, targets, types, values,
+    intrinsics, module, targets, types, values,
 };
-use urcl_ast::{Any, AnyFloat, AnyImm, AnyInt, Instruction, IntImm, Program, Register};
+use urcl_ast::{Any, AnyFloat, AnyInt, Instruction, Program, Register};
 
 pub use inkwell::{OptimizationLevel, targets::FileType};
 
@@ -100,84 +100,6 @@ impl<'a> Codegen<'a> {
             word,
             float,
             float_size,
-        }
-    }
-
-    fn di_basic_type(&self, name: &str, size: u64) -> debug_info::DIBasicType<'a> {
-        self.di_builder.create_basic_type(name, size, 7, 0).unwrap()
-    }
-
-    fn int_imm_to_word(&self, i: &IntImm) -> values::IntValue<'a> {
-        match i {
-            IntImm::Value(v) if v.is_zero() => self.word.const_zero(),
-            IntImm::Value(v) => {
-                let unsigned = self.word.const_int_arbitrary_precision(v.as_sign_words().1);
-
-                if v.sign() == dashu::base::Sign::Negative {
-                    unsigned.const_neg()
-                } else {
-                    unsigned
-                }
-            },
-            IntImm::InstLoc(l) => self.word.const_int(*l as _, false),
-        }
-    }
-
-    fn int_imm_to_addr_or_word(
-        &self,
-        i: &IntImm,
-        native_addr: bool,
-        inst_bb: &[basic_block::BasicBlock<'a>],
-    ) -> values::IntValue<'a> {
-        if native_addr {
-            match i {
-                IntImm::Value(v) => {
-                    let unsigned = self.word.const_int_arbitrary_precision(v.as_sign_words().1);
-
-                    if v.sign() == dashu::base::Sign::Negative {
-                        unsigned.const_neg()
-                    } else {
-                        unsigned
-                    }
-                },
-                IntImm::InstLoc(l) => unsafe { inst_bb[*l].get_address() }
-                    .unwrap()
-                    .const_to_int(self.word),
-            }
-        } else {
-            self.int_imm_to_word(i)
-        }
-    }
-
-    fn imm_to_addr_or_word(
-        &self,
-        i: &AnyImm,
-        native_addr: bool,
-        inst_bb: &[basic_block::BasicBlock<'a>],
-    ) -> values::IntValue<'a> {
-        match i {
-            AnyImm::IntImm(i) => self.int_imm_to_addr_or_word(i, native_addr, inst_bb),
-            AnyImm::FloatImm(f) => {
-                match self.float_size {
-                    FloatSize::_16 => {
-                        let bits = (f.0.to_f32().value() as f16).to_bits();
-                        self.word.const_int(bits as u64, false)
-                    },
-                    FloatSize::_32 => {
-                        let bits = f.0.to_f32().value().to_bits();
-                        self.word.const_int(bits as u64, false)
-                    },
-                    FloatSize::_64 => {
-                        let bits = f.0.to_f64().value().to_bits();
-                        self.word.const_int(bits, false)
-                    },
-                    FloatSize::_128 => {
-                        let bits = (f.0.to_f64().value() as f128).to_bits();
-                        self.word.const_int_arbitrary_precision(&[bits as u64, (bits >> 64) as u64])
-                    },
-                }
-            },
-            AnyImm::Undefined => self.word.get_undef(),
         }
     }
 
@@ -1130,8 +1052,8 @@ impl<'a> Codegen<'a> {
         self.builder.position_at_end(*inst_bb.last().unwrap());
         ret();
 
+        self.builder.position_at_end(big_switch_bb);
         if !native_addr {
-            self.builder.position_at_end(big_switch_bb);
             let v = self
                 .builder
                 .build_load(self.word, big_switch_to, "get_addr")
@@ -1147,6 +1069,8 @@ impl<'a> Codegen<'a> {
                         .collect::<Vec<_>>(),
                 )
                 .unwrap();
+        } else {
+            ret();
         }
 
         self.builder.position_at_end(ram_check_fail_bb);
@@ -1166,102 +1090,5 @@ impl<'a> Codegen<'a> {
         ret();
 
         self.di_builder.finalize();
-    }
-
-    pub fn optimize(&self, target: &targets::TargetMachine, opt: OptimizationLevel) {
-        let pass = passes::PassBuilderOptions::create();
-        self.module
-            .run_passes(&Self::get_passes(opt as _), target, pass)
-            .unwrap();
-    }
-
-    pub fn dump(&self) {
-        self.module
-            .print_to_file(std::path::Path::new("urcl.ll"))
-            .unwrap();
-        self.module
-            .write_bitcode_to_path(std::path::Path::new("urcl.bc"));
-    }
-
-    pub fn dump_opt(&self) {
-        self.module
-            .print_to_file(std::path::Path::new("urcl.opt.ll"))
-            .unwrap();
-        self.module
-            .write_bitcode_to_path(std::path::Path::new("urcl.opt.bc"));
-    }
-
-    pub fn get_machine(
-        triple: Option<&str>,
-        features: Option<&str>,
-        opt: OptimizationLevel,
-    ) -> targets::TargetMachine {
-        targets::Target::initialize_all(&targets::InitializationConfig::default());
-
-        let triple = triple.map_or_else(
-            targets::TargetMachine::get_default_triple,
-            targets::TargetTriple::create,
-        );
-        let target = targets::Target::from_triple(&triple).unwrap();
-        let cpu = targets::TargetMachine::get_host_cpu_name();
-        let ft = targets::TargetMachine::get_host_cpu_features();
-        let reloc = targets::RelocMode::DynamicNoPic;
-        let model = targets::CodeModel::Default;
-
-        target
-            .create_target_machine(
-                &triple,
-                cpu.to_str().unwrap(),
-                features.unwrap_or_else(|| ft.to_str().unwrap()),
-                opt,
-                reloc,
-                model,
-            )
-            .unwrap()
-    }
-
-    pub fn write_obj(
-        &self,
-        tm: &targets::TargetMachine,
-        ft: targets::FileType,
-        path: &std::path::Path,
-    ) {
-        tm.write_to_file(&self.module, ft, path).unwrap();
-    }
-
-    fn get_passes(lv: usize) -> String {
-        let major = support::get_llvm_version().0;
-        let suffix = format!("-{major}");
-
-        let mut cmd = std::process::Command::new(format!("opt{suffix}"));
-        let suffix = cmd
-            .arg("--version")
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status()
-            .map_or_else(|_| String::new(), |_| suffix);
-
-        let mut proc = std::process::Command::new("sh");
-        let proc = proc.arg("-c").arg(format!(
-            "llvm-as{suffix} < /dev/null | opt{suffix} --print-pipeline-passes -O{lv} 2> /dev/null"
-        ));
-
-        let out = proc.output().unwrap();
-        // if !out.status.success() {
-        //     panic!("failed trying to get optimization passes (returned {}) {out:?}", out.status);
-        // }
-
-        let mut s = String::from_utf8(out.stdout)
-            .unwrap()
-            .replace("BitcodeWriterPass", "")
-            .replace(",,", "")
-            .trim_end()
-            .to_string();
-
-        if s.ends_with(',') {
-            s.pop();
-        }
-
-        s
     }
 }
