@@ -5,5 +5,5 @@ edition = "2021"
 
 [dependencies]
 dashu = { version = "0.4.2", default-features = false }
-inkwell = { path = "../inkwell", features = ["llvm17-0-prefer-dynamic"] }
+inkwell = { path = "../inkwell", features = ["llvm18-0"] }
 urcl-ast = { path = "../urcl-ast" }
